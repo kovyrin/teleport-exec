@@ -17,15 +17,7 @@ message CommandStateResponse {
 }
 
 //-----------------------------------------------------------------------------
-message StopCommandRequest {
-  string command_id = 1;
-
-  // How long to wait before forcing the process to stop via SIGKILL
-  optional int32 stop_timeout_sec = 2;
-
-  // If we should use SIGKILL instead of SIGTERM
-  optional bool kill = 3;
-}
+message StopCommandRequest { string command_id = 1; }
 
 message StopCommandResponse {
   string command_id = 1;
