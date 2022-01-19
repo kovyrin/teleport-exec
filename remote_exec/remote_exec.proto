@@ -1,0 +1,67 @@
+syntax = "proto3";
+
+option go_package = "teleport_exec/remote_exec";
+package remote_exec;
+
+//-----------------------------------------------------------------------------
+message StartCommandRequest { string command = 1; }
+
+//-----------------------------------------------------------------------------
+message CommandStatusRequest { string command_id = 1; }
+
+message CommandStateResponse {
+  string command_id = 1;
+  string command = 2;
+  bool running = 3;
+  optional int32 result_code = 4;
+}
+
+//-----------------------------------------------------------------------------
+message StopCommandRequest {
+  string command_id = 1;
+
+  // How long to wait before forcing the process to stop via SIGKILL
+  optional int32 stop_timeout_sec = 2;
+
+  // If we should use SIGKILL instead of SIGTERM
+  optional bool kill = 3;
+}
+
+message StopCommandResponse {
+  string command_id = 1;
+  bool success = 2;
+}
+
+//-----------------------------------------------------------------------------
+message CommandOutputRequest {
+  string command_id = 1;
+
+  // If the output should be streamed until the command stops
+  bool stream = 2;
+}
+
+message CommandOutputLine { string line = 1; }
+
+//-----------------------------------------------------------------------------
+message StatusRequest {}
+
+message CommandStatus {
+  string command_id = 1;
+  string command = 2;
+  bool running = 3;
+}
+
+message StatusResponse {
+  string version = 1;
+  int64 pid = 2;
+  repeated CommandStatus commands = 3;
+}
+
+//-----------------------------------------------------------------------------
+service RemoteExec {
+  rpc Status(StatusRequest) returns (StatusResponse);
+  rpc StartCommand(StartCommandRequest) returns (CommandStateResponse);
+  rpc StopCommand(StopCommandRequest) returns (StopCommandResponse);
+  rpc CommandStatus(CommandStatusRequest) returns (CommandStateResponse);
+  rpc CommandOutput(CommandOutputRequest) returns (stream CommandOutputLine);
+}

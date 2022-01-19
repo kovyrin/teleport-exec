@@ -143,7 +143,7 @@ The following API methods will be available on the server:
 * `CommandStatus` - returns current status information for a given command (identified by a `command_id`).
 * `CommandOutput` - a streaming API for receiving console output from a given command (identified by a `command_id`). If requested, the stream will continue until the command has finished (tail mode).
 
-The detailed GRPC definition for the proposed API can be found within the `remote_exec.proto` file.
+The detailed GRPC definition for the proposed API can be found within the [remote_exec.proto](remote_exec/remote_exec.proto) file.
 
 ### Library design
 
