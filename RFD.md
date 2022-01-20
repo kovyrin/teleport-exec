@@ -138,7 +138,7 @@ In a production environment, we may want to introduce per-user resource limits, 
 The following API methods will be available on the server:
 
 * `Status` - returns some basic status information for the server, including the list of running and finished commands (for non-admin users only the processes owned by the user would be visible).
-* `StartCommand` - starts a command on the server and returns a unique `command_id` value used to manage the command in subsequent API calls.
+* `StartCommand` - starts a command on the server and returns a unique `command_id` value (a UUID string) used to manage the command in subsequent API calls.
 * `StopCommand` - stops a given command (identified by a `command_id`).
 * `CommandStatus` - returns current status information for a given command (identified by a `command_id`).
 * `CommandOutput` - a streaming API for receiving console output from a given command (identified by a `command_id`). If requested, the stream will continue until the command has finished (tail mode).
