@@ -85,7 +85,7 @@ func (c *remoteExecClient) CommandOutput(ctx context.Context, in *CommandOutputR
 }
 
 type RemoteExec_CommandOutputClient interface {
-	Recv() (*CommandOutputLine, error)
+	Recv() (*CommandOutputBlock, error)
 	grpc.ClientStream
 }
 
@@ -93,8 +93,8 @@ type remoteExecCommandOutputClient struct {
 	grpc.ClientStream
 }
 
-func (x *remoteExecCommandOutputClient) Recv() (*CommandOutputLine, error) {
-	m := new(CommandOutputLine)
+func (x *remoteExecCommandOutputClient) Recv() (*CommandOutputBlock, error) {
+	m := new(CommandOutputBlock)
 	if err := x.ClientStream.RecvMsg(m); err != nil {
 		return nil, err
 	}
@@ -226,7 +226,7 @@ func _RemoteExec_CommandOutput_Handler(srv interface{}, stream grpc.ServerStream
 }
 
 type RemoteExec_CommandOutputServer interface {
-	Send(*CommandOutputLine) error
+	Send(*CommandOutputBlock) error
 	grpc.ServerStream
 }
 
@@ -234,7 +234,7 @@ type remoteExecCommandOutputServer struct {
 	grpc.ServerStream
 }
 
-func (x *remoteExecCommandOutputServer) Send(m *CommandOutputLine) error {
+func (x *remoteExecCommandOutputServer) Send(m *CommandOutputBlock) error {
 	return x.ServerStream.SendMsg(m)
 }
 

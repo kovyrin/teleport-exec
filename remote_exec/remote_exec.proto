@@ -32,7 +32,7 @@ message CommandOutputRequest {
   bool stream = 2;
 }
 
-message CommandOutputLine { string line = 1; }
+message CommandOutputBlock { bytes output = 1; }
 
 //-----------------------------------------------------------------------------
 message StatusRequest {}
@@ -55,5 +55,5 @@ service RemoteExec {
   rpc StartCommand(StartCommandRequest) returns (CommandStateResponse);
   rpc StopCommand(StopCommandRequest) returns (StopCommandResponse);
   rpc CommandStatus(CommandStatusRequest) returns (CommandStateResponse);
-  rpc CommandOutput(CommandOutputRequest) returns (stream CommandOutputLine);
+  rpc CommandOutput(CommandOutputRequest) returns (stream CommandOutputBlock);
 }
