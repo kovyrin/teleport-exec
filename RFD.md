@@ -141,7 +141,7 @@ The following API methods will be available on the server:
 * `StartCommand` - starts a command on the server and returns a unique `command_id` value (a UUID string) used to manage the command in subsequent API calls.
 * `StopCommand` - stops a given command (identified by a `command_id`).
 * `CommandStatus` - returns current status information for a given command (identified by a `command_id`).
-* `CommandOutput` - a streaming API for receiving console output from a given command (identified by a `command_id`). If requested, the stream will continue until the command has finished (tail mode).
+* `CommandOutput` - a streaming API for receiving console output (combined stdout+stderr) from a given command (identified by a `command_id`). If requested, the stream will continue until the command has finished (tail mode).
 
 The detailed GRPC definition for the proposed API can be found within the [remote_exec.proto](remote_exec/remote_exec.proto) file.
 
