@@ -25,28 +25,17 @@ message StopCommandResponse {
 }
 
 //-----------------------------------------------------------------------------
-message CommandOutputRequest {
-  string command_id = 1;
-
-  // If the output should be streamed until the command stops
-  bool stream = 2;
-}
+message CommandOutputRequest { string command_id = 1; }
 
 message CommandOutputBlock { bytes output = 1; }
 
 //-----------------------------------------------------------------------------
 message StatusRequest {}
 
-message CommandStatus {
-  string command_id = 1;
-  string command = 2;
-  bool running = 3;
-}
-
 message StatusResponse {
   string version = 1;
   int64 pid = 2;
-  repeated CommandStatus commands = 3;
+  repeated CommandStateResponse commands = 3;
 }
 
 //-----------------------------------------------------------------------------
