@@ -119,13 +119,13 @@ For this exercise, we're going to accept the following constraints:
 
 In a multi-tenant environment like the system in question, we need to ensure proper resource limits to reduce the potential impact of noisy or abusive clients on the underlying host OS.
 
-We're going to use linux Cgroups to apply the following limits on each command:
+We're going to use linux cgroup2 APIs to apply the following limits on each command:
 
-* Memory usage – a static per-command limit will be applied on each container.
+* [Memory usage](https://facebookmicrosites.github.io/cgroup2/docs/memory-controller.html) – a static per-command limit will be applied on each container.
 
-* CPU usage - each command will be limited to a small constant amount of CPU resources, preventing it from negative affecting the host OS and other commands by consuming too much CPU.
+* [CPU usage](https://facebookmicrosites.github.io/cgroup2/docs/cpu-controller.html) - each command will be limited to a small constant amount of CPU resources, preventing it from negative affecting the host OS and other commands by consuming too much CPU.
 
-* Disk IO - each command will be limited by the amount of disk IO it could perform to limit the effects from a single command's high IO load on the host OS and other commands.
+* [Disk IO](https://facebookmicrosites.github.io/cgroup2/docs/io-controller.html) - each command will be limited by the amount of disk IO it could perform to limit the effects from a single command's high IO load on the host OS and other commands.
 
 ##### Scope limits
 
