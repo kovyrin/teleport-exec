@@ -137,7 +137,7 @@ In a production environment, we may want to introduce per-user resource limits, 
 
 The following API methods will be available on the server:
 
-* `Status` - returns some basic status information
+* `Status` - returns some basic status information for the server, including the list of running and finished commands (for non-admin users only the processes owned by the user would be visible).
 * `StartCommand` - starts a command on the server and returns a unique `command_id` value used to manage the command in subsequent API calls.
 * `StopCommand` - stops a given command (identified by a `command_id`).
 * `CommandStatus` - returns current status information for a given command (identified by a `command_id`).
@@ -155,9 +155,9 @@ In a production scenario, this approach would make it possible to potentially re
 
 We're going to apply the following design decisions while building the library:
 
-* Just like in unix process management, we keep finished command status and command logs only until someone calls `Status()` on it (think of it just like a zombie process).
+* Finished process state and logs will remain on the server and there will be no explicit way to delete those. It opens the server up to a number of DoS attacks and in a production scenario some kind of cleanup logic would need to be implemented (docker-like explicit delete command, time-based expiration, etc).
 
-* To avoid storing all output in memory while allowing us to stream command output from the beginning, we follow the approach used by Docker: log into a file per container and stream from the file as needed. The file is deleted when the command status is consumed by the user.
+* To avoid storing all output in memory while allowing us to stream command output from the beginning, we follow the approach used by Docker: log into a file per container and stream from the file as needed. The file is never deleted (see above for clarifications).
 
 * All processes started by the server share the same process group, so that we could kill them all as a group when killing the command.
 
