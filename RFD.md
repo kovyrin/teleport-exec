@@ -61,6 +61,12 @@ A remote command execution service poses a number of challenges when it comes to
 
 We're going to use a dedicated certificate authority to issue server and client certificates and will use it to verify both the server and the client during the establishment of an mTLS connection to the service.
 
+The following parameters will be used for all TLS sessions:
+* TLS v1.3
+* A secure default set of cipher suites:
+    - Modern ciphers like Chacha20 and AES GCM
+    - Key exchanges with support for perfect forward secrecy
+
 ##### Scope limits
 
 CA, server and client certificate generation and management is out of scope for the project. A set of example certificates and keys will be checked into the repository with the project to allow for easier development of the system.
@@ -113,7 +119,7 @@ For this exercise, we're going to accept the following constraints:
 
 * Networking namespace will be used to separate the user command from the host OS network, but we're not going to build any bridges, etc to connect container network to the host.
 
-* We're going to create a new clean filesystem by extracting an Alpine Root FS image per command, which will use 5Mb of disk space per container. In a production environment we would probably rely on some kind of layered filesystem like overlayfs to save on disk resources.
+* We're going to reuse the host root filesystem instead of creating a separate clean FS for each container (using something like Alpine Root FS, etc).
 
 #### Availability and resource limits
 
