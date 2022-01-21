@@ -153,7 +153,7 @@ The detailed GRPC definition for the proposed API can be found within the [remot
 
 ### Library design
 
-Most of concerns around containerization will be isolated within the `container_exec` library, allowing us to have a very simple GRPC server around the library. This should make it easier to test the containerization code and contain most of the complexity (dealing with Linux APIs, process management, logs management, concurrency concerns, etc) the library.
+Most of concerns around containerization will be isolated within the `container_exec` library developed for this project, allowing us to have a very simple GRPC server around the library. This should make it easier to test the containerization code and contain most of the complexity (dealing with Linux APIs, process management, logs management, concurrency concerns, etc) the library.
 
 In a production scenario, this approach would make it possible to potentially reuse the library in multiple different systems (see ContainerD core services or the Moby project and its usage within Docker).
 
@@ -166,6 +166,20 @@ We're going to apply the following design decisions while building the library:
 * To avoid storing all output in memory while allowing us to stream command output from the beginning, we follow the approach used by Docker: log into a file per container and stream from the file as needed. The file is never deleted (see above for clarifications).
 
 * All processes started by the server share the same process group, so that we could kill them all as a group when killing the command.
+
+#### Design details
+
+##### Log streaming
+
+When executing a new command, we will redirect its stdout/stderr to a command-specific log file. This makes it possible for us to stream log content to multiple clients at the same time using different stream positions and always have access to the whole command output no matter how long it is (limited by available disk space). The streaming of content from the end of the file may be implemented by using a library like [hpcloud/tail](https://github.com/hpcloud/tail) or built into the solution by either polling the `stat()` syscall results (and looking at the size of the file there) or by using the `inotify()` API for detecting file changes.
+
+There will not be any log rotation, but in a production scenario we would probably add a limit on the size of the log and start rotating it eventually.
+
+##### Process management
+
+We're going to use the `exec.Command` Go API to start each command. Linux kernel namespaces will be enabled for each command via the `SysProcAttr` attribute.  For filesystem isolation (`/proc remounting, etc) and for applying Cgroups to the command process, we're going to rely on the [reexec](https://pkg.go.dev/github.com/docker/docker/pkg/reexec) package from Docker to allow us to apply the changes in the environment needed before a command is executed.
+
+To avoid race conditions on reading and updating the status information for a command process, we're going to use a separate goroutine running `command.Wait()` to detect the moment when a process has finished and its status information has become available.
 
 ### CLI
 
