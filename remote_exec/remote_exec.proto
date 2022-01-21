@@ -4,7 +4,7 @@ option go_package = "teleport_exec/remote_exec";
 package remote_exec;
 
 //-----------------------------------------------------------------------------
-message StartCommandRequest { string command = 1; }
+message StartCommandRequest { repeated string command = 1; }
 
 //-----------------------------------------------------------------------------
 message CommandStatusRequest { string command_id = 1; }
