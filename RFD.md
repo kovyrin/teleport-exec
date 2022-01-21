@@ -181,6 +181,44 @@ We're going to use the `exec.Command` Go API to start each command. Linux kernel
 
 To avoid race conditions on reading and updating the status information for a command process, we're going to use a separate goroutine running `command.Wait()` to detect the moment when a process has finished and its status information has become available.
 
+##### Proposed library API
+
+The library is going to have a high-level abstraction for managing all commands within the system (a `ProcessManager`). It will be the main entry point for start/stop operations and for finding a command based on its command_id.
+
+Here are the proposed methods for the process manager:
+
+```go
+interface ProcessManager {
+  StartCommand(command []string) (*Command, error);
+  FindCommand(command_id string) *Command;
+  StopCommand(command_id) error;
+  Commands() []*Command;
+}
+```
+
+A lower level entity called `Command` will be used to wrap `exec.Command` and other Go APIs to implement a coherent API for managing a single process.
+
+```go
+interface Command {
+  Start() error;
+  Running() bool;
+  Wait();
+  Kill();
+  ResultCode() int32;
+  NewLogStream() *LogStream;
+  CloseLogStream(log *LogStream) error;
+}
+```
+
+Finally, a separate entity within the API will be used to implement a single log stream (`LogStream`). This should allow us to encapsulate all the streaming details within a single object with a simple API:
+
+```go
+interface LogStream {
+  NextLine() (log_line string, eof bool);
+  Close() error;
+}
+```
+
 ### CLI
 
 The client binary will be used as the primary mechanism for accessing the service during the exercise. In an actual production environment, we could potentially build different clients (web ui, cli, etc) all relying on the same fundamental GRPC API.
