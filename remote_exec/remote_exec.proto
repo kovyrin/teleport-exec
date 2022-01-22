@@ -14,6 +14,7 @@ message CommandStateResponse {
   string command = 2;
   bool running = 3;
   optional int32 result_code = 4;
+  optional bool exited = 5;
 }
 
 //-----------------------------------------------------------------------------
