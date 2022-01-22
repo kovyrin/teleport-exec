@@ -75,23 +75,22 @@ In an actual production system, certificates and keys would have to be configure
 
 #### Authorization
 
-Simple authorization tokens will be used by the client to gain access to the system after the initial mTLS connection is established. Each client could have its own set of access tokens and tokens could be revoked by the operators of the service if needed.
+Client certificate CommonName (CN) field will be used for authorization after the initial mTLS connection is established. Each unique client will be identified by their CN name and their role will be attached to their CN value.
 
 ##### Scope limits
 
 For this exercise, we're going to assume the following set of constraints:
 
-* Tokens do not expire
-* There is no user/token management infrastructure within the service (tokens will be hardcoded within a mock authorization service).
+* There is no user management infrastructure within the service (users will be hardcoded within a mock authorization service).
 * The service will have two pre-defined roles:
   - `admin` - can submit any commands to the service, list all commands, and see output from any command
   - `user` - can submit any commands to the service, but can only list and see output from their own commands
 
-In an actual production system, we'd probably want all authorization tokens to have some kind of TTL and would need a way to manage tokens on the server that did not require us to rebuild the server. A more flexible role system may be needed as well.
+In an actual production system, we'd need a way to manage users on the server in a way, that did not require us to rebuild the server. A more flexible role system may be needed as well.
 
 #### Data Protection
 
-The data passing through the system needs to be protected in-flight (while being transferred between the client and the server) and at-rest (command logs need to be protected if persisted on disk). Additionally, users should only be able to see output from their own commands (unless an admin-level access token is used).
+The data passing through the system needs to be protected in-flight (while being transferred between the client and the server) and at-rest (command logs need to be protected if persisted on disk). Additionally, users should only be able to see output from their own commands (unless an admin-level user certificate is provided).
 
 ##### Scope limits
 
@@ -99,7 +98,7 @@ For this exercise, we're going to assume the following constraints:
 
 * In-flight content protection will be implemented by encrypting all traffic.
 * On-disk logs protection will be limited to file permissions (0600).
-* Token-based authorization will be used to control who can see output from which commands (see the dedicated section above).
+* Client name-based authorization will be used to control who can see output from which commands (see the dedicated section above).
 
 In a real production scenario we may want to encrypt on-disk logs (either do it ourselves or provide the operator with guidelines on how to achieve it via `dm-crypt`, encrypted EBS, or other technologies).
 
@@ -232,14 +231,14 @@ The CLI will have the following commands available to the user:
 * `kill` - stops a remote command
 * `logs` - shows remote command's console output (use `-tail` to follow the log)
 
-The address of the server and the authorization token could be provided via command flags (e.g. `-addr string` and `-token string`) or via an environment variable.
+The address of the server and the client certificate to use could be provided via a command flag (e.g. `-addr string` and `-cert string`).
 
 
 #### Command examples
 
-Example commands (all assume a token is provided via a TOKEN environment variable):
+Example commands:
 
-* Get remote server status (very simple call that could be used to test connection to the service and troubleshoot service connections)
+* Get remote server status (a very simple call that could be used to test connection to the service and troubleshoot service connections)
   ```
   ./build/client server-status
   ```
@@ -259,14 +258,9 @@ Example commands (all assume a token is provided via a TOKEN environment variabl
   ./build/client status d2761bf6-c196-435b-96b4-d3560f82ee65
   ```
 
-* Get console output of a a remote command with a given command id logged until now
+* Get console output of a a remote command with a given command id and stream logs until the command finishes
   ```
   ./build/client logs d2761bf6-c196-435b-96b4-d3560f82ee65
-  ```
-
-* Get console output of a a remote command with a given command id and wait for more
-  ```
-  ./build/client logs -tail d2761bf6-c196-435b-96b4-d3560f82ee65
   ```
 
 * Stop a remote command with a given command id
