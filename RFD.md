@@ -214,7 +214,7 @@ Finally, a separate entity within the API will be used to implement a single log
 
 ```go
 interface LogStream {
-  NextLine() (log_line string, eof bool);
+  MoreBytes(max_bytes uint) (output []bytes, eof bool);
   Close() error;
 }
 ```
