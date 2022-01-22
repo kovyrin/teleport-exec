@@ -19,9 +19,9 @@ const _ = grpc.SupportPackageIsVersion7
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type RemoteExecClient interface {
 	Status(ctx context.Context, in *StatusRequest, opts ...grpc.CallOption) (*StatusResponse, error)
-	StartCommand(ctx context.Context, in *StartCommandRequest, opts ...grpc.CallOption) (*CommandStateResponse, error)
+	StartCommand(ctx context.Context, in *StartCommandRequest, opts ...grpc.CallOption) (*CommandStatusResponse, error)
 	StopCommand(ctx context.Context, in *StopCommandRequest, opts ...grpc.CallOption) (*StopCommandResponse, error)
-	CommandStatus(ctx context.Context, in *CommandStatusRequest, opts ...grpc.CallOption) (*CommandStateResponse, error)
+	CommandStatus(ctx context.Context, in *CommandStatusRequest, opts ...grpc.CallOption) (*CommandStatusResponse, error)
 	CommandOutput(ctx context.Context, in *CommandOutputRequest, opts ...grpc.CallOption) (RemoteExec_CommandOutputClient, error)
 }
 
@@ -42,8 +42,8 @@ func (c *remoteExecClient) Status(ctx context.Context, in *StatusRequest, opts .
 	return out, nil
 }
 
-func (c *remoteExecClient) StartCommand(ctx context.Context, in *StartCommandRequest, opts ...grpc.CallOption) (*CommandStateResponse, error) {
-	out := new(CommandStateResponse)
+func (c *remoteExecClient) StartCommand(ctx context.Context, in *StartCommandRequest, opts ...grpc.CallOption) (*CommandStatusResponse, error) {
+	out := new(CommandStatusResponse)
 	err := c.cc.Invoke(ctx, "/remote_exec.RemoteExec/StartCommand", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -60,8 +60,8 @@ func (c *remoteExecClient) StopCommand(ctx context.Context, in *StopCommandReque
 	return out, nil
 }
 
-func (c *remoteExecClient) CommandStatus(ctx context.Context, in *CommandStatusRequest, opts ...grpc.CallOption) (*CommandStateResponse, error) {
-	out := new(CommandStateResponse)
+func (c *remoteExecClient) CommandStatus(ctx context.Context, in *CommandStatusRequest, opts ...grpc.CallOption) (*CommandStatusResponse, error) {
+	out := new(CommandStatusResponse)
 	err := c.cc.Invoke(ctx, "/remote_exec.RemoteExec/CommandStatus", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -106,9 +106,9 @@ func (x *remoteExecCommandOutputClient) Recv() (*CommandOutputBlock, error) {
 // for forward compatibility
 type RemoteExecServer interface {
 	Status(context.Context, *StatusRequest) (*StatusResponse, error)
-	StartCommand(context.Context, *StartCommandRequest) (*CommandStateResponse, error)
+	StartCommand(context.Context, *StartCommandRequest) (*CommandStatusResponse, error)
 	StopCommand(context.Context, *StopCommandRequest) (*StopCommandResponse, error)
-	CommandStatus(context.Context, *CommandStatusRequest) (*CommandStateResponse, error)
+	CommandStatus(context.Context, *CommandStatusRequest) (*CommandStatusResponse, error)
 	CommandOutput(*CommandOutputRequest, RemoteExec_CommandOutputServer) error
 	mustEmbedUnimplementedRemoteExecServer()
 }
@@ -120,13 +120,13 @@ type UnimplementedRemoteExecServer struct {
 func (UnimplementedRemoteExecServer) Status(context.Context, *StatusRequest) (*StatusResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Status not implemented")
 }
-func (UnimplementedRemoteExecServer) StartCommand(context.Context, *StartCommandRequest) (*CommandStateResponse, error) {
+func (UnimplementedRemoteExecServer) StartCommand(context.Context, *StartCommandRequest) (*CommandStatusResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method StartCommand not implemented")
 }
 func (UnimplementedRemoteExecServer) StopCommand(context.Context, *StopCommandRequest) (*StopCommandResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method StopCommand not implemented")
 }
-func (UnimplementedRemoteExecServer) CommandStatus(context.Context, *CommandStatusRequest) (*CommandStateResponse, error) {
+func (UnimplementedRemoteExecServer) CommandStatus(context.Context, *CommandStatusRequest) (*CommandStatusResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CommandStatus not implemented")
 }
 func (UnimplementedRemoteExecServer) CommandOutput(*CommandOutputRequest, RemoteExec_CommandOutputServer) error {

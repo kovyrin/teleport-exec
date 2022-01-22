@@ -9,7 +9,7 @@ message StartCommandRequest { repeated string command = 1; }
 //-----------------------------------------------------------------------------
 message CommandStatusRequest { string command_id = 1; }
 
-message CommandStateResponse {
+message CommandStatusResponse {
   string command_id = 1;
   string command = 2;
   bool running = 3;
@@ -36,14 +36,14 @@ message StatusRequest {}
 message StatusResponse {
   string version = 1;
   int64 pid = 2;
-  repeated CommandStateResponse commands = 3;
+  repeated CommandStatusResponse commands = 3;
 }
 
 //-----------------------------------------------------------------------------
 service RemoteExec {
   rpc Status(StatusRequest) returns (StatusResponse);
-  rpc StartCommand(StartCommandRequest) returns (CommandStateResponse);
+  rpc StartCommand(StartCommandRequest) returns (CommandStatusResponse);
   rpc StopCommand(StopCommandRequest) returns (StopCommandResponse);
-  rpc CommandStatus(CommandStatusRequest) returns (CommandStateResponse);
+  rpc CommandStatus(CommandStatusRequest) returns (CommandStatusResponse);
   rpc CommandOutput(CommandOutputRequest) returns (stream CommandOutputBlock);
 }
