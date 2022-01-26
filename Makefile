@@ -1,3 +1,6 @@
+cwd := $(shell pwd)
+use_tty := $(shell [ -t 0 ] && echo "-it")
+#--------------------------------------------------------------------------------------------------
 all: protoc
 
 #--------------------------------------------------------------------------------------------------
@@ -12,4 +15,7 @@ remote_exec/remote_exec_grpc.pb.go: remote_exec/remote_exec.proto
 #--------------------------------------------------------------------------------------------------
 test:
 		docker build -t teleport-exec-test -f Dockerfile.test .
-		docker run -e TERM=color -it --rm --privileged teleport-exec-test
+		docker run -e TERM=color $(use_tty) --rm --privileged teleport-exec-test
+
+lint:
+		docker run -e TERM=color $(use_tty) --rm -v $(cwd):/app -w /app golangci/golangci-lint:v1.44.0 golangci-lint run
