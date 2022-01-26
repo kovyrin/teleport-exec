@@ -12,4 +12,4 @@ remote_exec/remote_exec_grpc.pb.go: remote_exec/remote_exec.proto
 #--------------------------------------------------------------------------------------------------
 test:
 		docker build -t teleport-exec-test -f Dockerfile.test .
-		docker run -it --rm --privileged teleport-exec-test
+		docker run -e TERM=color -it --rm --privileged teleport-exec-test
