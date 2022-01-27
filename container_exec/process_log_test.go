@@ -91,8 +91,7 @@ func TestProcessCloseLogStream(t *testing.T) {
 		})
 
 		Convey("When called with an unknown reader", func() {
-			f, _ := os.Open("/etc/hosts")
-			stream := NewLogStream(f)
+			stream := NewLogStream("/etc/hosts")
 			res := pl.CloseLogStream(stream)
 
 			Convey("It should return an error", func() {
