@@ -4,13 +4,15 @@ import (
 	"errors"
 	"log"
 	"os"
+	"sync"
 )
 
 //-------------------------------------------------------------------------------------------------
 type ProcessLog struct {
-	command_id string
-	fd         *os.File
-	readers    map[*LogStream]bool
+	command_id  string
+	fd          *os.File
+	readers     map[*LogStream]bool
+	readersLock sync.Mutex
 }
 
 func NewProcessLog(command_id string) *ProcessLog {
@@ -57,17 +59,19 @@ func (l *ProcessLog) Close() (err error) {
 //-------------------------------------------------------------------------------------------------
 // Returns a new file reader for the log.
 func (l *ProcessLog) NewLogStream() *LogStream {
-	file, err := os.Open(l.FileName())
-	if err != nil {
-		log.Fatalf("Failed to open log file '%s': %v", l.FileName(), err)
-	}
-	stream := NewLogStream(file)
+	l.readersLock.Lock()
+	defer l.readersLock.Unlock()
+
+	stream := NewLogStream(l.FileName())
 	l.readers[stream] = true
 	return stream
 }
 
 // Returns a new file reader for the log.
 func (l *ProcessLog) CloseLogStream(stream *LogStream) error {
+	l.readersLock.Lock()
+	defer l.readersLock.Unlock()
+
 	if _, ok := l.readers[stream]; ok {
 		delete(l.readers, stream)
 		return stream.Close()

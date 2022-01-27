@@ -1,38 +1,52 @@
 package container_exec
 
 import (
-	"bufio"
+	"io"
+	"log"
 	"os"
 )
 
 type LogStream struct {
-	reader  *os.File
-	scanner *bufio.Scanner
+	fileName string
+	reader   *os.File
 }
 
-func NewLogStream(f *os.File) *LogStream {
+func NewLogStream(file_name string) *LogStream {
+	file, err := os.Open(file_name)
+	if err != nil {
+		log.Fatalf("Failed to open log file '%s': %v", file_name, err)
+	}
+
 	return &LogStream{
-		reader:  f,
-		scanner: bufio.NewScanner(f),
+		fileName: file_name,
+		reader:   file,
 	}
 }
 
-func (log *LogStream) NextLine() (log_line string, eof bool) {
-	if !log.scanner.Scan() {
-		return "", true
+func (l *LogStream) MoreBytes(output []byte) (read_bytes int) {
+	// Get current position
+	current_pos, err := l.reader.Seek(0, io.SeekCurrent)
+	if err != nil {
+		log.Fatalf("Failed to find current file position for '%s': %v", l.fileName, err)
 	}
-	return log.scanner.Text(), false
-}
 
-func (log *LogStream) AllLines() (lines []string) {
-	for {
-		line, eof := log.NextLine()
-		if eof {
-			break
-		}
-		lines = append(lines, line)
+	// Get file size
+	stat, err := os.Stat(l.fileName)
+	if err != nil {
+		log.Fatalf("Failed to check file status for file '%s': %v", l.fileName, err)
 	}
-	return lines
+
+	// If there is nothing to read, just return an eof
+	if stat.Size() == current_pos {
+		return 0
+	}
+
+	// Otherwise, read up to max_bytes of data
+	read_bytes, err = l.reader.Read(output)
+	if err != nil && err != io.EOF {
+		log.Fatalf("Failed to read data from file '%s': %v", l.fileName, err)
+	}
+	return read_bytes
 }
 
 func (log *LogStream) Close() error {
