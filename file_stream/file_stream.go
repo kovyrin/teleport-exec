@@ -67,6 +67,9 @@ func (s *FileStream) WaitForChanges() (changed bool) {
 					result <- true
 					return
 				}
+			case <-s.Done:
+				result <- false
+				return
 			case <-s.ctx.Done():
 				result <- false
 				return
