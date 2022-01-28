@@ -1,17 +1,19 @@
 package container_exec
 
 import (
+	"context"
 	"errors"
 	"log"
 	"os"
 	"sync"
+	"teleport-exec/file_stream"
 )
 
 //-------------------------------------------------------------------------------------------------
 type ProcessLog struct {
 	command_id  string
 	fd          *os.File
-	readers     map[*LogStream]bool
+	readers     map[*file_stream.FileStream]bool
 	readersLock sync.Mutex
 }
 
@@ -20,7 +22,7 @@ func NewProcessLog(command_id string) *ProcessLog {
 
 	l := &ProcessLog{
 		command_id: command_id,
-		readers:    make(map[*LogStream]bool),
+		readers:    make(map[*file_stream.FileStream]bool),
 	}
 
 	var err error
@@ -58,17 +60,17 @@ func (l *ProcessLog) Close() (err error) {
 
 //-------------------------------------------------------------------------------------------------
 // Returns a new file reader for the log.
-func (l *ProcessLog) NewLogStream() *LogStream {
+func (l *ProcessLog) NewLogStream(ctx context.Context) *file_stream.FileStream {
 	l.readersLock.Lock()
 	defer l.readersLock.Unlock()
 
-	stream := NewLogStream(l.FileName())
+	stream := file_stream.NewFileStream(l.FileName(), ctx)
 	l.readers[stream] = true
 	return stream
 }
 
 // Returns a new file reader for the log.
-func (l *ProcessLog) CloseLogStream(stream *LogStream) error {
+func (l *ProcessLog) CloseLogStream(stream *file_stream.FileStream) error {
 	l.readersLock.Lock()
 	defer l.readersLock.Unlock()
 
