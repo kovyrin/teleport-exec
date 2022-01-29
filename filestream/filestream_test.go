@@ -1,4 +1,4 @@
-package file_stream
+package filestream
 
 import (
 	"context"
@@ -15,7 +15,7 @@ func TestFileStream_MoreBytes(t *testing.T) {
 	ctx := context.Background()
 	buffer := make([]byte, 100)
 
-	Convey("file_stream.MoreBytes()", t, func() {
+	Convey("filestream.MoreBytes()", t, func() {
 		file_name := "/tmp/tail_test.log"
 		f, _ := os.Create(file_name)
 		init_content := "hello, world!\n"

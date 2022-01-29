@@ -1,4 +1,4 @@
-package file_stream
+package filestream
 
 import (
 	"context"

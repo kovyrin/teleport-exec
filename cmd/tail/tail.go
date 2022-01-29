@@ -5,7 +5,7 @@ import (
 	"io"
 	"log"
 	"os"
-	"teleport-exec/file_stream"
+	"teleport-exec/filestream"
 	"time"
 )
 
@@ -28,7 +28,7 @@ func main() {
 	}()
 
 	// Start a new stream from the file
-	stream, err := file_stream.New(timeout_ctx, file_name)
+	stream, err := filestream.New(timeout_ctx, file_name)
 	if err != nil {
 		log.Fatalln("Failed to initialize a file stream:", err)
 	}
