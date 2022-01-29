@@ -4,6 +4,7 @@ import (
 	"context"
 	"io"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -12,6 +13,7 @@ import (
 
 func TestFileStream_MoreBytes(t *testing.T) {
 	ctx := context.Background()
+	buffer := make([]byte, 100)
 
 	Convey("file_stream.MoreBytes()", t, func() {
 		file_name := "/tmp/tail_test.log"
@@ -19,37 +21,43 @@ func TestFileStream_MoreBytes(t *testing.T) {
 		init_content := "hello, world!\n"
 		f.WriteString(init_content)
 
-		stream := NewFileStream(file_name, ctx)
+		stream, _ := New(ctx, file_name)
 
 		Convey("Should return a full buffer when possible", func() {
-			f.WriteString("xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx")
-			content := stream.MoreBytes()
-			So(len(content), ShouldEqual, 100)
+			f.WriteString(strings.Repeat("x", len(buffer)))
+			read_bytes, err := stream.Read(buffer)
+			So(read_bytes, ShouldEqual, len(buffer))
+			So(err, ShouldBeNil)
 		})
 
 		Convey("Should return available bytes when reaches the end", func() {
-			content := stream.MoreBytes()
-			So(string(content), ShouldResemble, init_content)
+			read_bytes, err := stream.Read(buffer)
+			So(err, ShouldBeNil)
+			So(read_bytes, ShouldEqual, len(init_content))
+			So(string(buffer[:read_bytes]), ShouldResemble, init_content)
 		})
 
 		Convey("Should return more data when more data is added to the file", func() {
 			// Read the last 5 bytes and reach the end of the stream
 			stream.reader.Seek(-5, io.SeekEnd)
-			content := stream.MoreBytes()
-			So(len(content), ShouldEqual, 5)
+			read_bytes, err := stream.Read(buffer)
+			So(read_bytes, ShouldEqual, 5)
+			So(err, ShouldBeNil)
 
 			// Add more data
 			more_content := "banana"
 			f.WriteString(more_content)
 
 			// Should be able to consume it now
-			content = stream.MoreBytes()
-			So(string(content), ShouldResemble, more_content)
+			read_bytes, err = stream.Read(buffer)
+			So(read_bytes, ShouldEqual, len(more_content))
+			So(err, ShouldBeNil)
+			So(string(buffer[:read_bytes]), ShouldResemble, more_content)
 		})
 
 		Convey("Should block and wait for more data when reaches the end", func() {
 			// read all data
-			stream.MoreBytes()
+			stream.Read(buffer)
 
 			// Write some content a second later
 			go func() {
@@ -57,29 +65,31 @@ func TestFileStream_MoreBytes(t *testing.T) {
 				f.WriteString("yo")
 			}()
 
-			content := stream.MoreBytes()
-			So(string(content), ShouldResemble, "yo")
+			read_bytes, err := stream.Read(buffer)
+			So(read_bytes, ShouldEqual, 2)
+			So(err, ShouldBeNil)
+			So(string(buffer[:read_bytes]), ShouldResemble, "yo")
 		})
 
-		Convey("Should return nil when cancelled via the context", func() {
+		Convey("Should return an EOF when cancelled via the context", func() {
 			// Create a stream that times out after a second
 			timeout_ctx, cancel := context.WithTimeout(ctx, time.Second)
 			defer cancel()
-			stream := NewFileStream(file_name, timeout_ctx)
+			stream, _ := New(timeout_ctx, file_name)
 
 			// Read all data
-			stream.MoreBytes()
+			stream.Read(buffer)
 
 			// Try to read more and block
-			content := stream.MoreBytes()
+			_, err := stream.Read(buffer)
 
-			// Should return nil after being cancelled
-			So(content, ShouldBeNil)
+			// Should return an EOF after being cancelled
+			So(err, ShouldEqual, io.EOF)
 		})
 
 		Convey("Should return nil when cancelled via the Done channel", func() {
 			// Read all data
-			stream.MoreBytes()
+			stream.Read(buffer)
 
 			// Wait a second and then send a done signal
 			go func() {
@@ -88,14 +98,15 @@ func TestFileStream_MoreBytes(t *testing.T) {
 			}()
 
 			// Try to read more and block
-			content := stream.MoreBytes()
+			_, err := stream.Read(buffer)
 
 			// Should return nil after being cancelled
-			So(content, ShouldBeNil)
+			So(err, ShouldEqual, io.EOF)
 		})
 
 		Reset(func() {
 			stream.Close()
+			os.Remove(file_name)
 		})
 	})
 }

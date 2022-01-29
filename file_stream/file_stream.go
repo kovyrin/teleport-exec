@@ -22,7 +22,7 @@ type FileStream struct {
 }
 
 //-------------------------------------------------------------------------------------------------
-func NewFileStream(ctx context.Context, file_name string) (*FileStream, error) {
+func New(ctx context.Context, file_name string) (*FileStream, error) {
 	file, err := os.Open(file_name)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open file '%s': %w", file_name, err)

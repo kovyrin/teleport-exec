@@ -28,7 +28,7 @@ func main() {
 	}()
 
 	// Start a new stream from the file
-	stream, err := file_stream.NewFileStream(timeout_ctx, file_name)
+	stream, err := file_stream.New(timeout_ctx, file_name)
 	if err != nil {
 		log.Fatalln("Failed to initialize a file stream:", err)
 	}
