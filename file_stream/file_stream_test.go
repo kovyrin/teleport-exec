@@ -87,23 +87,6 @@ func TestFileStream_MoreBytes(t *testing.T) {
 			So(err, ShouldEqual, io.EOF)
 		})
 
-		Convey("Should return nil when cancelled via the Done channel", func() {
-			// Read all data
-			stream.Read(buffer)
-
-			// Wait a second and then send a done signal
-			go func() {
-				time.Sleep(time.Second)
-				stream.Done <- true
-			}()
-
-			// Try to read more and block
-			_, err := stream.Read(buffer)
-
-			// Should return nil after being cancelled
-			So(err, ShouldEqual, io.EOF)
-		})
-
 		Reset(func() {
 			stream.Close()
 			os.Remove(file_name)

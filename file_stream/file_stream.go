@@ -14,9 +14,6 @@ type FileStream struct {
 	reader    *os.File
 	watcher   *fsnotify.Watcher
 
-	// Used for get command completion notifications
-	Done chan bool
-
 	// Used to abort streaming when a client disconnects, etc
 	ctx context.Context
 }
@@ -43,7 +40,6 @@ func New(ctx context.Context, file_name string) (*FileStream, error) {
 		reader:    file,
 		watcher:   watcher,
 		ctx:       ctx,
-		Done:      make(chan bool),
 	}, nil
 }
 
@@ -68,9 +64,6 @@ func (s *FileStream) WaitForChanges() (changed bool) {
 					result <- true
 					return
 				}
-			case <-s.Done:
-				result <- false
-				return
 			case <-s.ctx.Done():
 				result <- false
 				return
