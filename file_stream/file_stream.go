@@ -2,8 +2,8 @@ package file_stream
 
 import (
 	"context"
+	"fmt"
 	"io"
-	"log"
 	"os"
 
 	"github.com/fsnotify/fsnotify"
@@ -22,20 +22,20 @@ type FileStream struct {
 }
 
 //-------------------------------------------------------------------------------------------------
-func NewFileStream(file_name string, ctx context.Context) *FileStream {
+func NewFileStream(ctx context.Context, file_name string) (*FileStream, error) {
 	file, err := os.Open(file_name)
 	if err != nil {
-		log.Fatalf("Failed to open file '%s': %v", file_name, err)
+		return nil, fmt.Errorf("failed to open file '%s': %w", file_name, err)
 	}
 
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
-		log.Fatalf("Failed to start a watcher: %v", err)
+		return nil, fmt.Errorf("failed to start a watcher: %w", err)
 	}
 
 	err = watcher.Add(file_name)
 	if err != nil {
-		log.Fatalf("Failed to add file '%s' to the watcher: %v", file_name, err)
+		return nil, fmt.Errorf("failed to add file '%s' to the watcher: %w", file_name, err)
 	}
 
 	return &FileStream{
@@ -44,10 +44,11 @@ func NewFileStream(file_name string, ctx context.Context) *FileStream {
 		watcher:   watcher,
 		ctx:       ctx,
 		Done:      make(chan bool),
-	}
+	}, nil
 }
 
 //-------------------------------------------------------------------------------------------------
+// Closes the fsnotify watcher and the underlying file stream
 func (s *FileStream) Close() error {
 	err := s.watcher.Close()
 	if err == nil {
@@ -81,31 +82,32 @@ func (s *FileStream) WaitForChanges() (changed bool) {
 }
 
 //-------------------------------------------------------------------------------------------------
-func (s *FileStream) readBlock(buffer []byte) int {
+func (s *FileStream) readBlock(buffer []byte) (int, error) {
 	read_bytes, err := s.reader.Read(buffer)
 	if err == io.EOF || read_bytes == 0 {
-		return 0
+		return 0, nil
 	}
 
 	if err != nil {
-		log.Fatalf("Failed to read data from file '%s': %v", s.file_name, err)
+		return 0, fmt.Errorf("failed to read data from file '%s': %w", s.file_name, err)
 	}
 
-	return read_bytes
+	return read_bytes, nil
 }
 
 //-------------------------------------------------------------------------------------------------
-func (s *FileStream) MoreBytes() []byte {
-	buffer := make([]byte, 100)
+// Implements the io.Reader interface
+// Returns the data available in the stream and blocks for more data if the stream is empty.
+func (s *FileStream) Read(buffer []byte) (int, error) {
 	for {
-		read_bytes := s.readBlock(buffer)
-		if read_bytes > 0 {
-			return buffer[:read_bytes]
+		read_bytes, err := s.readBlock(buffer)
+		if err != nil || read_bytes > 0 {
+			return read_bytes, err
 		}
 
 		// If we stopped before any content is available, we need to abort
 		if !s.WaitForChanges() {
-			return nil
+			return 0, io.EOF
 		}
 	}
 }
