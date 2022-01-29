@@ -1,11 +1,13 @@
 package container_exec
 
 import (
+	"context"
 	"log"
 	"os/exec"
 	"runtime"
 	"sync"
 	"syscall"
+	"teleport-exec/file_stream"
 	"time"
 
 	"github.com/google/uuid"
@@ -15,17 +17,20 @@ import (
 type Command struct {
 	CommandId    string
 	Command      string
+	Args         []string
 	executor     *exec.Cmd
 	log          *ProcessLog
 	running      bool
+	failure      error
 	commandMutex sync.RWMutex
 }
 
 //-------------------------------------------------------------------------------------------------
-func NewCommand(command string) Command {
+func NewCommand(command []string) Command {
 	return Command{
 		CommandId: uuid.NewString(),
-		Command:   command,
+		Command:   command[0],
+		Args:      command[1:],
 		running:   false,
 	}
 }
@@ -42,7 +47,7 @@ func (s *Command) Start() error {
 	defer s.commandMutex.Unlock()
 
 	// Set up the command execution
-	s.executor = exec.Command("/bin/sh", "-c", s.Command)
+	s.executor = exec.Command(s.Command, s.Args...)
 	s.executor.SysProcAttr = s.sysProcAttr()
 
 	// Redirect command output to a command-specific log (so that we could read/stream it later)
@@ -59,6 +64,7 @@ func (s *Command) Start() error {
 	err := s.executor.Start()
 	if err != nil {
 		log.Printf("Failed to run command '%s': %v", s.Command, err)
+		s.failure = err
 		return nil
 	}
 	s.running = true
@@ -164,6 +170,13 @@ func (s *Command) ResultCode() *int32 {
 }
 
 //-------------------------------------------------------------------------------------------------
+func (s *Command) Failure() error {
+	s.commandMutex.RLock()
+	defer s.commandMutex.RUnlock()
+	return s.failure
+}
+
+//-------------------------------------------------------------------------------------------------
 // Closes log files, releases other resources used by the command
 func (s *Command) Close() {
 	// Make sure the process has stopped
@@ -179,10 +192,10 @@ func (s *Command) Close() {
 }
 
 //-------------------------------------------------------------------------------------------------
-func (s *Command) NewLogStream() *LogStream {
-	return s.log.NewLogStream()
+func (s *Command) NewLogStream(ctx context.Context) *file_stream.FileStream {
+	return s.log.NewLogStream(ctx)
 }
 
-func (s *Command) CloseLogStream(log *LogStream) error {
+func (s *Command) CloseLogStream(log *file_stream.FileStream) error {
 	return s.log.CloseLogStream(log)
 }

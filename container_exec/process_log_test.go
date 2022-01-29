@@ -1,8 +1,9 @@
 package container_exec
 
 import (
-	"bufio"
+	"context"
 	"os"
+	"teleport-exec/file_stream"
 	"testing"
 
 	"github.com/google/uuid"
@@ -45,10 +46,12 @@ func TestProcessLogClose(t *testing.T) {
 
 //-------------------------------------------------------------------------------------------------
 func TestProcessNewLogStream(t *testing.T) {
+	ctx := context.Background()
+
 	Convey("When NewLogStream() is called", t, func() {
 		id := uuid.NewString()
 		pl := NewProcessLog(id)
-		stream := pl.NewLogStream()
+		stream := pl.NewLogStream(ctx)
 
 		Convey("It should return a file reader for the log", func() {
 			So(stream, ShouldNotBeNil)
@@ -60,9 +63,8 @@ func TestProcessNewLogStream(t *testing.T) {
 
 		Convey("The returned reader could be used to consume the content from the file", func() {
 			pl.fd.WriteString("banana")
-			s := bufio.NewScanner(stream.reader)
-			s.Scan()
-			So(s.Text(), ShouldResemble, "banana")
+			content := stream.MoreBytes()
+			So(string(content), ShouldResemble, "banana")
 		})
 
 		Reset(func() {
@@ -73,16 +75,18 @@ func TestProcessNewLogStream(t *testing.T) {
 
 // //-------------------------------------------------------------------------------------------------
 func TestProcessCloseLogStream(t *testing.T) {
+	ctx := context.Background()
+
 	Convey("When CloseReader() is called", t, func() {
 		id := uuid.NewString()
 		pl := NewProcessLog(id)
-		stream := pl.NewLogStream()
+		stream := pl.NewLogStream(ctx)
 
 		Convey("When called with a valid reader", func() {
-			res := pl.CloseLogStream(stream)
+			err := pl.CloseLogStream(stream)
 
 			Convey("It should return no error", func() {
-				So(res, ShouldBeNil)
+				So(err, ShouldBeNil)
 			})
 
 			Convey("It should delete the reader from the readers list", func() {
@@ -91,11 +95,11 @@ func TestProcessCloseLogStream(t *testing.T) {
 		})
 
 		Convey("When called with an unknown reader", func() {
-			stream := NewLogStream("/etc/hosts")
-			res := pl.CloseLogStream(stream)
+			stream := file_stream.NewFileStream("/etc/passwd", ctx)
+			err := pl.CloseLogStream(stream)
 
 			Convey("It should return an error", func() {
-				So(res, ShouldNotBeNil)
+				So(err, ShouldNotBeNil)
 			})
 		})
 

@@ -9,11 +9,12 @@ import (
 //-------------------------------------------------------------------------------------------------
 func TestNewCommand(t *testing.T) {
 	Convey("When NewCommand is called", t, func() {
-		command := `echo "banana"`
+		command := []string{"echo", "banana"}
 		cmd := NewCommand(command)
 
 		Convey("It should persist the command value", func() {
-			So(cmd.Command, ShouldEqual, command)
+			So(cmd.Command, ShouldResemble, command[0])
+			So(cmd.Args, ShouldResemble, command[1:])
 		})
 	})
 }
@@ -21,7 +22,7 @@ func TestNewCommand(t *testing.T) {
 //-------------------------------------------------------------------------------------------------
 func TestStart(t *testing.T) {
 	Convey("When Start is called on a command", t, func() {
-		command := `true`
+		command := []string{"true"}
 		cmd := NewCommand(command)
 
 		Convey("It should set up the executor", func() {
@@ -35,36 +36,45 @@ func TestStart(t *testing.T) {
 			So(cmd.executor.Stderr, ShouldNotBeNil)
 		})
 
-		Convey("It should wrap the actual command with a shell", func() {
-			cmd.Start()
-			So(cmd.executor.Args, ShouldResemble, []string{"/bin/sh", "-c", command})
-		})
-
 		Convey("It should actually run the command", func() {
 			cmd.Start()
 			cmd.Wait()
 			So(cmd.executor.ProcessState.Exited(), ShouldBeTrue)
 			So(cmd.executor.ProcessState.ExitCode(), ShouldEqual, 0)
+			So(cmd.Failure(), ShouldBeNil)
+		})
+
+		Convey("When we fail to run a command", func() {
+			command := []string{"banana"}
+			cmd = NewCommand(command)
+			cmd.Start()
+			cmd.Wait()
+
+			Convey("It should capture the error", func() {
+				So(cmd.Failure(), ShouldNotBeNil)
+			})
 		})
 
 		Convey("When a command fails", func() {
-			command = "banana"
+			command := []string{"/bin/sh", "-c", "banana"}
 			cmd = NewCommand(command)
 			cmd.Start()
 			cmd.Wait()
 
 			Convey("It should capture the exit code", func() {
-				So(cmd.executor.ProcessState.Exited(), ShouldBeTrue)
-				So(cmd.executor.ProcessState.ExitCode(), ShouldEqual, 127)
+				state := cmd.executor.ProcessState
+				So(state.Exited(), ShouldBeTrue)
+				So(state.ExitCode(), ShouldEqual, 127)
 			})
 		})
+
 	})
 }
 
 //-------------------------------------------------------------------------------------------------
 func TestRunning(t *testing.T) {
 	Convey("Running()", t, func() {
-		command := "true"
+		command := []string{"true"}
 		cmd := NewCommand(command)
 
 		Convey("When a command has finished", func() {
@@ -76,7 +86,7 @@ func TestRunning(t *testing.T) {
 		})
 
 		Convey("When a command is still running", func() {
-			command = "sleep 1"
+			command = []string{"sleep", "1"}
 			cmd.Start()
 			Convey("It should return true", func() {
 				So(cmd.Running(), ShouldBeTrue)
@@ -91,7 +101,7 @@ func TestRunning(t *testing.T) {
 func TestCommandClose(t *testing.T) {
 	Convey("Close()", t, func() {
 		Convey("It should kill the process if needed", func() {
-			cmd := NewCommand(`sleep 5`)
+			cmd := NewCommand([]string{"sleep", "5"})
 			cmd.Start()
 			So(cmd.Running(), ShouldBeTrue)
 			cmd.Close()
@@ -104,7 +114,7 @@ func TestCommandClose(t *testing.T) {
 func TestCommand_ResultCode(t *testing.T) {
 	Convey("ResultCode()", t, func() {
 		Convey("Returns 0 when a command succeeds", func() {
-			cmd := NewCommand(`true`)
+			cmd := NewCommand([]string{"true"})
 			cmd.Start()
 			cmd.Wait()
 			So(cmd.Running(), ShouldBeFalse)
@@ -114,7 +124,7 @@ func TestCommand_ResultCode(t *testing.T) {
 		})
 
 		Convey("Returns the right code when a command fails", func() {
-			cmd := NewCommand(`false`)
+			cmd := NewCommand([]string{"false"})
 			cmd.Start()
 			cmd.Wait()
 			So(cmd.Running(), ShouldBeFalse)
@@ -124,7 +134,7 @@ func TestCommand_ResultCode(t *testing.T) {
 		})
 
 		Convey("Returns nil if the command is still running", func() {
-			cmd := NewCommand(`sleep 1`)
+			cmd := NewCommand([]string{"sleep", "1"})
 			cmd.Start()
 			So(cmd.Running(), ShouldBeTrue)
 			code := cmd.ResultCode()

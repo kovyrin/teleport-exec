@@ -7,21 +7,22 @@ import (
 type CommandStatus struct {
 	CommandId string
 	Command   string
+	Args      []string
 	Running   bool
 }
 
-type ContainerExecController struct {
+type Controller struct {
 	commands map[string]*Command
 }
 
-func NewContainerExecController() *ContainerExecController {
-	controller := ContainerExecController{}
+func NewController() *Controller {
+	controller := Controller{}
 	controller.commands = make(map[string]*Command)
 	return &controller
 }
 
 //-------------------------------------------------------------------------------------------------
-func (c *ContainerExecController) StartCommand(command string) *Command {
+func (c *Controller) StartCommand(command []string) *Command {
 	cmd := NewCommand(command)
 	cmd.Start()
 	c.commands[cmd.CommandId] = &cmd
@@ -29,7 +30,7 @@ func (c *ContainerExecController) StartCommand(command string) *Command {
 }
 
 //-------------------------------------------------------------------------------------------------
-func (c *ContainerExecController) FindCommand(command_id string) (*Command, error) {
+func (c *Controller) FindCommand(command_id string) (*Command, error) {
 	cmd, ok := c.commands[command_id]
 	if !ok {
 		return nil, errors.New("Unknown command: " + command_id)
@@ -38,7 +39,7 @@ func (c *ContainerExecController) FindCommand(command_id string) (*Command, erro
 }
 
 //-------------------------------------------------------------------------------------------------
-func (c *ContainerExecController) FinishCommand(command_id string) error {
+func (c *Controller) FinishCommand(command_id string) error {
 	cmd, err := c.FindCommand(command_id)
 	if err != nil {
 		return err
@@ -50,7 +51,7 @@ func (c *ContainerExecController) FinishCommand(command_id string) error {
 }
 
 //-------------------------------------------------------------------------------------------------
-func (c *ContainerExecController) Close() {
+func (c *Controller) Close() {
 	var uuids []string
 	for id := range c.commands {
 		uuids = append(uuids, id)
@@ -62,11 +63,12 @@ func (c *ContainerExecController) Close() {
 }
 
 //-------------------------------------------------------------------------------------------------
-func (c *ContainerExecController) Commands() (commands []CommandStatus) {
+func (c *Controller) Commands() (commands []CommandStatus) {
 	for command_id, cmd := range c.commands {
 		commands = append(commands, CommandStatus{
 			CommandId: command_id,
 			Command:   cmd.Command,
+			Args:      cmd.Args,
 			Running:   cmd.Running(),
 		})
 	}
