@@ -3,7 +3,7 @@ package container_exec
 import (
 	"context"
 	"os"
-	"teleport-exec/file_stream"
+	"teleport-exec/filestream"
 	"testing"
 
 	"github.com/google/uuid"
@@ -14,9 +14,12 @@ import (
 func TestNewProcessLog(t *testing.T) {
 	Convey("When creating a new process log", t, func() {
 		id := uuid.NewString()
-		pl := NewProcessLog(id)
+		pl, err := NewProcessLog(id)
 
 		Convey("It should create a new log file", func() {
+			So(err, ShouldBeNil)
+
+			// Make sure the log file exists
 			_, err := os.Stat(pl.FileName())
 			So(err, ShouldBeNil)
 		})
@@ -32,14 +35,21 @@ func TestNewProcessLog(t *testing.T) {
 func TestProcessLogClose(t *testing.T) {
 	Convey("When Close() is called", t, func() {
 		id := uuid.NewString()
-		pl := NewProcessLog(id)
+		pl, err := NewProcessLog(id)
 
 		Convey("It should delete the log file", func() {
-			_, err := os.Stat(pl.FileName())
 			So(err, ShouldBeNil)
+
+			// Check that the file exists
+			_, stat_err := os.Stat(pl.FileName())
+			So(stat_err, ShouldBeNil)
+
+			// Close the stream and delete the file
 			pl.Close()
-			_, err = os.Stat(pl.FileName())
-			So(err, ShouldNotBeNil)
+
+			// Make sure the file is gone
+			_, stat_err = os.Stat(pl.FileName())
+			So(stat_err, ShouldNotBeNil)
 		})
 	})
 }
@@ -50,11 +60,12 @@ func TestProcessNewLogStream(t *testing.T) {
 
 	Convey("When NewLogStream() is called", t, func() {
 		id := uuid.NewString()
-		pl := NewProcessLog(id)
-		stream := pl.NewLogStream(ctx)
+		pl, _ := NewProcessLog(id)
+		stream, err := pl.NewLogStream(ctx)
 
 		Convey("It should return a file reader for the log", func() {
 			So(stream, ShouldNotBeNil)
+			So(err, ShouldBeNil)
 		})
 
 		Convey("It should record the reader to be closed later", func() {
@@ -63,8 +74,10 @@ func TestProcessNewLogStream(t *testing.T) {
 
 		Convey("The returned reader could be used to consume the content from the file", func() {
 			pl.fd.WriteString("banana")
-			content := stream.MoreBytes()
-			So(string(content), ShouldResemble, "banana")
+			buffer := make([]byte, 100)
+			read_bytes, err := stream.Read(buffer)
+			So(string(buffer[:read_bytes]), ShouldResemble, "banana")
+			So(err, ShouldBeNil)
 		})
 
 		Reset(func() {
@@ -79,8 +92,8 @@ func TestProcessCloseLogStream(t *testing.T) {
 
 	Convey("When CloseReader() is called", t, func() {
 		id := uuid.NewString()
-		pl := NewProcessLog(id)
-		stream := pl.NewLogStream(ctx)
+		pl, _ := NewProcessLog(id)
+		stream, _ := pl.NewLogStream(ctx)
 
 		Convey("When called with a valid reader", func() {
 			err := pl.CloseLogStream(stream)
@@ -95,7 +108,7 @@ func TestProcessCloseLogStream(t *testing.T) {
 		})
 
 		Convey("When called with an unknown reader", func() {
-			stream := file_stream.NewFileStream("/etc/passwd", ctx)
+			stream, _ := filestream.New(ctx, "/etc/passwd")
 			err := pl.CloseLogStream(stream)
 
 			Convey("It should return an error", func() {

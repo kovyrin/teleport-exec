@@ -7,7 +7,7 @@ import (
 	"runtime"
 	"sync"
 	"syscall"
-	"teleport-exec/file_stream"
+	"teleport-exec/filestream"
 	"time"
 
 	"github.com/google/uuid"
@@ -51,9 +51,13 @@ func (s *Command) Start() error {
 	s.executor.SysProcAttr = s.sysProcAttr()
 
 	// Redirect command output to a command-specific log (so that we could read/stream it later)
-	s.log = NewProcessLog(s.CommandId)
-	s.executor.Stdout = s.log.fd
-	s.executor.Stderr = s.log.fd
+	pl, err := NewProcessLog(s.CommandId)
+	if err != nil {
+		return err
+	}
+	s.log = pl
+	s.executor.Stdout = pl.fd
+	s.executor.Stderr = pl.fd
 
 	// On Linux, pdeathsig will kill the child process when the thread dies,
 	// not when the process dies. runtime.LockOSThread ensures that as long
@@ -61,7 +65,7 @@ func (s *Command) Start() error {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 
-	err := s.executor.Start()
+	err = s.executor.Start()
 	if err != nil {
 		log.Printf("Failed to run command '%s': %v", s.Command, err)
 		s.failure = err
@@ -192,10 +196,10 @@ func (s *Command) Close() {
 }
 
 //-------------------------------------------------------------------------------------------------
-func (s *Command) NewLogStream(ctx context.Context) *file_stream.FileStream {
+func (s *Command) NewLogStream(ctx context.Context) (*filestream.FileStream, error) {
 	return s.log.NewLogStream(ctx)
 }
 
-func (s *Command) CloseLogStream(log *file_stream.FileStream) error {
+func (s *Command) CloseLogStream(log *filestream.FileStream) error {
 	return s.log.CloseLogStream(log)
 }

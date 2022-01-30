@@ -3,35 +3,35 @@ package container_exec
 import (
 	"context"
 	"errors"
-	"log"
+	"fmt"
 	"os"
 	"sync"
-	"teleport-exec/file_stream"
+	"teleport-exec/filestream"
 )
 
 //-------------------------------------------------------------------------------------------------
 type ProcessLog struct {
 	command_id  string
 	fd          *os.File
-	readers     map[*file_stream.FileStream]bool
+	readers     map[*filestream.FileStream]bool
 	readersLock sync.Mutex
 }
 
-func NewProcessLog(command_id string) *ProcessLog {
+func NewProcessLog(command_id string) (*ProcessLog, error) {
 	file_name := "/tmp/command-" + command_id + ".out"
+
+	fd, err := os.Create(file_name)
+	if err != nil {
+		return nil, fmt.Errorf("Failed to create a log file for command %s (%s): %w", command_id, file_name, err)
+	}
 
 	l := &ProcessLog{
 		command_id: command_id,
-		readers:    make(map[*file_stream.FileStream]bool),
+		readers:    make(map[*filestream.FileStream]bool),
+		fd:         fd,
 	}
 
-	var err error
-	l.fd, err = os.Create(file_name)
-	if err != nil {
-		log.Fatalf("Failed to create a log file for command %s (%s): %v", command_id, file_name, err)
-	}
-
-	return l
+	return l, nil
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -60,17 +60,21 @@ func (l *ProcessLog) Close() (err error) {
 
 //-------------------------------------------------------------------------------------------------
 // Returns a new file reader for the log.
-func (l *ProcessLog) NewLogStream(ctx context.Context) *file_stream.FileStream {
+func (l *ProcessLog) NewLogStream(ctx context.Context) (*filestream.FileStream, error) {
 	l.readersLock.Lock()
 	defer l.readersLock.Unlock()
 
-	stream := file_stream.NewFileStream(l.FileName(), ctx)
+	stream, err := filestream.New(ctx, l.FileName())
+	if err != nil {
+		return nil, err
+	}
+
 	l.readers[stream] = true
-	return stream
+	return stream, nil
 }
 
 // Returns a new file reader for the log.
-func (l *ProcessLog) CloseLogStream(stream *file_stream.FileStream) error {
+func (l *ProcessLog) CloseLogStream(stream *filestream.FileStream) error {
 	l.readersLock.Lock()
 	defer l.readersLock.Unlock()
 
