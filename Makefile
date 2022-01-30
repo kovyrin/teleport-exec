@@ -15,8 +15,8 @@ base_image: protoc
 
 test: base_image
 		docker run -e TERM=color -it --rm --privileged teleport-exec-test \
-			go test -v ./...
+			go test -race -v ./...
 
 ping: base_image
 		docker run -e TERM=color -it --rm --privileged teleport-exec-test \
-			go run cmd/containerize/containerize.go ping -O 8.8.8.8
+			go run -race cmd/containerize/containerize.go ping -O 8.8.8.8
