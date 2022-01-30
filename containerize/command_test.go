@@ -1,4 +1,4 @@
-package container_exec
+package containerize
 
 import (
 	"testing"
