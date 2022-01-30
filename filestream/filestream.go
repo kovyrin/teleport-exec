@@ -99,7 +99,7 @@ func (s *FileStream) Read(buffer []byte) (int, error) {
 		}
 
 		// If we stopped before any content is available, we need to abort
-		if !s.WaitForChanges() {
+		if !s.waitForChanges() {
 			return 0, io.EOF
 		}
 	}
