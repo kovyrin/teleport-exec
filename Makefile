@@ -1,3 +1,7 @@
+cwd := $(shell pwd)
+use_tty := $(shell [ -t 0 ] && echo "-it")
+docker_run := docker run -e TERM=color $(use_tty) --rm --privileged teleport-exec-test
+#--------------------------------------------------------------------------------------------------
 all: protoc
 
 #--------------------------------------------------------------------------------------------------
@@ -14,9 +18,10 @@ base_image: protoc
 		docker build -t teleport-exec-test .
 
 test: base_image
-		docker run -e TERM=color -it --rm --privileged teleport-exec-test \
-			go test -race -v ./...
+		 $(docker_run) go test -race -v ./...
 
 ping: base_image
-		docker run -e TERM=color -it --rm --privileged teleport-exec-test \
-			go run -race cmd/containerize/containerize.go ping -O 8.8.8.8
+		$(docker_run) go run -race cmd/containerize/containerize.go ping -O 8.8.8.8
+
+lint:
+		docker run -e TERM=color $(use_tty) --rm -v $(cwd):/app -w /app golangci/golangci-lint:v1.44.0 golangci-lint run
