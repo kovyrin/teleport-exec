@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -12,6 +13,7 @@ import (
 )
 
 func TestFileStream_MoreBytes(t *testing.T) {
+	var wg sync.WaitGroup
 	ctx := context.Background()
 	buffer := make([]byte, 100)
 
@@ -21,7 +23,8 @@ func TestFileStream_MoreBytes(t *testing.T) {
 		init_content := "hello, world!\n"
 		f.WriteString(init_content)
 
-		stream, _ := New(ctx, file_name)
+		tail_enabled := true
+		stream, _ := New(ctx, file_name, tail_enabled)
 
 		Convey("Should return a full buffer when possible", func() {
 			f.WriteString(strings.Repeat("x", len(buffer)))
@@ -55,27 +58,77 @@ func TestFileStream_MoreBytes(t *testing.T) {
 			So(string(buffer[:read_bytes]), ShouldResemble, more_content)
 		})
 
-		Convey("Should block and wait for more data when reaches the end", func() {
-			// read all data
-			stream.Read(buffer)
+		Convey("When running in a tail mode", func() {
+			Convey("Should block and wait for more data when reaches the end", func() {
+				// read all data
+				stream.Read(buffer)
 
-			// Write some content a second later
-			go func() {
-				time.Sleep(time.Second)
-				f.WriteString("yo")
-			}()
+				// Write some content a second later
+				go func() {
+					time.Sleep(time.Second)
+					f.WriteString("yo")
+				}()
 
-			read_bytes, err := stream.Read(buffer)
-			So(read_bytes, ShouldEqual, 2)
-			So(err, ShouldBeNil)
-			So(string(buffer[:read_bytes]), ShouldResemble, "yo")
+				read_bytes, err := stream.Read(buffer)
+				So(read_bytes, ShouldEqual, 2)
+				So(err, ShouldBeNil)
+				So(string(buffer[:read_bytes]), ShouldResemble, "yo")
+			})
+		})
+
+		Convey("When running in a non-tail mode", func() {
+			stream, _ := New(ctx, file_name, false)
+
+			Convey("Should return an EOF when reaches the end", func() {
+				// read all data
+				stream.Read(buffer)
+
+				// Write some content a second later
+				wg.Add(1)
+				go func() {
+					defer wg.Done()
+					time.Sleep(time.Second)
+					f.WriteString("yo")
+				}()
+
+				read_bytes, err := stream.Read(buffer)
+				So(read_bytes, ShouldEqual, 0)
+				So(err, ShouldEqual, io.EOF)
+
+				// Wait for the async write operation to complete
+				wg.Wait()
+			})
+		})
+
+		Convey("When tailing is disabled while reading", func() {
+			stream.DisableTail()
+
+			Convey("Should return an EOF when reaches the end", func() {
+				// read all data
+				stream.Read(buffer)
+
+				// Write some content a second later
+				wg.Add(1)
+				go func() {
+					defer wg.Done()
+					time.Sleep(time.Second)
+					f.WriteString("yo")
+				}()
+
+				read_bytes, err := stream.Read(buffer)
+				So(read_bytes, ShouldEqual, 0)
+				So(err, ShouldEqual, io.EOF)
+
+				// Wait for the async write operation to complete
+				wg.Wait()
+			})
 		})
 
 		Convey("Should return an EOF when cancelled via the context", func() {
 			// Create a stream that times out after a second
 			timeout_ctx, cancel := context.WithTimeout(ctx, time.Second)
 			defer cancel()
-			stream, _ := New(timeout_ctx, file_name)
+			stream, _ := New(timeout_ctx, file_name, tail_enabled)
 
 			// Read all data
 			stream.Read(buffer)
@@ -104,7 +157,7 @@ func TestFileStream_MoreBytes(t *testing.T) {
 			So(err, ShouldEqual, io.EOF)
 		})
 
-		Convey("Should return an EOF without attempting to read if called after closing", func() {
+		Convey("Should return an EOF without reading any data if called after closing", func() {
 			stream.Close()
 			read_bytes, err := stream.Read(buffer)
 			So(err, ShouldEqual, io.EOF)
@@ -118,7 +171,7 @@ func TestFileStream_MoreBytes(t *testing.T) {
 	})
 
 	Convey("filestream.Close()", t, func() {
-		stream, _ := New(ctx, "/etc/hosts")
+		stream, _ := New(ctx, "/etc/hosts", true)
 
 		Convey("Should not blow up when called twice and return no errors", func() {
 			So(stream.Close(), ShouldBeNil)

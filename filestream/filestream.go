@@ -15,6 +15,9 @@ type FileStream struct {
 	reader    *os.File
 	watcher   *fsnotify.Watcher
 
+	tailEnabled bool      // Controls what happens when we hit the EOF: wait for more (true) or stop (false)
+	logComplete chan bool // Used to notify the reader when the log is complete
+
 	mu       sync.Mutex      // Protects access to the stream data
 	done     chan bool       // A channel for letting the reader know that the stream is closed
 	isClosed bool            // Set to true when Close() is first called
@@ -22,7 +25,7 @@ type FileStream struct {
 }
 
 //-------------------------------------------------------------------------------------------------
-func New(ctx context.Context, file_name string) (*FileStream, error) {
+func New(ctx context.Context, file_name string, tail bool) (*FileStream, error) {
 	file, err := os.Open(file_name)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open file '%s': %w", file_name, err)
@@ -39,12 +42,32 @@ func New(ctx context.Context, file_name string) (*FileStream, error) {
 	}
 
 	return &FileStream{
-		file_name: file_name,
-		reader:    file,
-		watcher:   watcher,
-		ctx:       ctx,
-		done:      make(chan bool),
+		file_name:   file_name,
+		tailEnabled: tail,
+		reader:      file,
+		watcher:     watcher,
+		ctx:         ctx,
+		done:        make(chan bool),
+		logComplete: make(chan bool),
 	}, nil
+}
+
+//-------------------------------------------------------------------------------------------------
+func (s *FileStream) TailEnabled() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.tailEnabled
+}
+
+func (s *FileStream) DisableTail() {
+	if !s.TailEnabled() {
+		return
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.tailEnabled = false
+	close(s.logComplete) // Tell the reader to stop waiting for more content
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -69,41 +92,39 @@ func (s *FileStream) Close() error {
 }
 
 //-------------------------------------------------------------------------------------------------
-func (s *FileStream) waitForChanges() (changed bool) {
-	result := make(chan bool)
-	go func() {
-		for {
-			select {
-			case event := <-s.watcher.Events:
-				if event.Op&fsnotify.Write == fsnotify.Write {
-					result <- true
-					return
-				}
-			case <-s.done:
-				result <- false
-				return
-			case <-s.ctx.Done():
-				result <- false
+// Blocks until there is a write event on the file or we're asked to stop waiting and/or reading
+func (s *FileStream) waitForChanges() {
+	for {
+		select {
+		// Some write occurred and we should see if we could read something
+		case event := <-s.watcher.Events:
+			if event.Op&fsnotify.Write == fsnotify.Write {
 				return
 			}
+		// We were asked to stop tailing the file
+		case <-s.logComplete:
+			return
+		// We were asked to stop reading the file
+		case <-s.done:
+			return
+		// The context has been cancelled and we should stop
+		case <-s.ctx.Done():
+			return
 		}
-	}()
-
-	return <-result
+	}
 }
 
 //-------------------------------------------------------------------------------------------------
-func (s *FileStream) readBlock(buffer []byte) (int, error) {
-	read_bytes, err := s.reader.Read(buffer)
-	if err == io.EOF || read_bytes == 0 {
-		return 0, nil
+// Returns true if we are done reading the stream or were asked to stop
+func (s *FileStream) shouldStop() bool {
+	select {
+	case <-s.done:
+		return true
+	case <-s.ctx.Done():
+		return true
+	default:
+		return false
 	}
-
-	if err != nil {
-		return 0, fmt.Errorf("failed to read data from file '%s': %w", s.file_name, err)
-	}
-
-	return read_bytes, nil
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -111,22 +132,27 @@ func (s *FileStream) readBlock(buffer []byte) (int, error) {
 // Returns the data available in the stream and blocks for more data if the stream is empty.
 func (s *FileStream) Read(buffer []byte) (int, error) {
 	for {
-		// Do not attempt to read if we're already closed
-		select {
-		case <-s.done:
+		if s.shouldStop() {
 			return 0, io.EOF
-		default:
+		}
+		read_bytes, err := s.reader.Read(buffer)
+
+		// How we handle the EOF depends on the current tail mode
+		if err == io.EOF {
+			if s.TailEnabled() {
+				err = nil
+			} else {
+				s.Close()
+			}
 		}
 
-		// Get some data if possible
-		read_bytes, err := s.readBlock(buffer)
+		// If there was an error (including an IO in non-tailing mode)
+		// or if we have read something, return it to the caller
 		if err != nil || read_bytes > 0 {
 			return read_bytes, err
 		}
 
 		// Wait until we have more data to read or if we're stopped by context or a Close() call
-		if !s.waitForChanges() {
-			return 0, io.EOF
-		}
+		s.waitForChanges()
 	}
 }
