@@ -17,7 +17,3 @@ RUN go mod download
 
 # Add all of our code
 COPY . /app
-<<<<<<< HEAD:Dockerfile.test
-ENTRYPOINT ["go", "test", "-race", "-v", "./..."]
-=======
->>>>>>> 8827eaa (Add a containerize tool for local testing of the library):Dockerfile
