@@ -8,4 +8,4 @@ if [[ "$1" == "" ]]; then
 fi
 
 make base_image
-docker run -e TERM=color -it --rm --privileged teleport-exec-test go run -race cmd/containerize/containerize.go $*
+docker run -e TERM=color -it --rm --privileged teleport-exec-test go run -race cmd/containerize/containerize.go "$@"
