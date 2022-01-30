@@ -22,7 +22,7 @@ func NewProcessLog(command_id string) (*ProcessLog, error) {
 
 	fd, err := os.Create(file_name)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to create a log file for command %s (%s): %w", command_id, file_name, err)
+		return nil, fmt.Errorf("failed to create a log file for command %s (%s): %w", command_id, file_name, err)
 	}
 
 	l := &ProcessLog{
@@ -41,18 +41,21 @@ func (l *ProcessLog) FileName() string {
 
 // Closes the log and deletes the log file
 func (l *ProcessLog) Close() (err error) {
+	l.readersLock.Lock()
+	defer l.readersLock.Unlock()
+
+	// Close the log and delete the log file
+	err = l.fd.Close()
+	if err == nil {
+		err = os.Remove(l.FileName())
+	}
+
 	// Close all readers
 	for reader := range l.readers {
 		err = reader.Close()
 		if err != nil {
 			return err
 		}
-	}
-
-	// Close the log and delete the log file
-	err = l.fd.Close()
-	if err == nil {
-		err = os.Remove(l.FileName())
 	}
 
 	return err
@@ -71,17 +74,17 @@ func (l *ProcessLog) LogComplete() {
 
 //-------------------------------------------------------------------------------------------------
 // Returns a new file reader for the log.
-func (l *ProcessLog) NewLogStream(ctx context.Context) (*filestream.FileStream, error) {
+func (l *ProcessLog) NewLogStream(ctx context.Context, tail bool) (stream *filestream.FileStream, err error) {
 	l.readersLock.Lock()
 	defer l.readersLock.Unlock()
 
-	stream, err := filestream.New(ctx, l.FileName())
-	if err != nil {
-		return nil, err
+	// Store the stream so that we could close it later
+	stream, err = filestream.New(ctx, l.FileName(), tail)
+	if err == nil {
+		l.readers[stream] = true
 	}
 
-	l.readers[stream] = true
-	return stream, nil
+	return stream, err
 }
 
 // Returns a new file reader for the log.

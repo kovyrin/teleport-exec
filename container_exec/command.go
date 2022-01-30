@@ -100,8 +100,8 @@ func (s *Command) sysProcAttr() *syscall.SysProcAttr {
 
 		// Isolate the process as needed
 		Cloneflags: syscall.CLONE_NEWUTS | // New UTS IPC namespace (isolated hostname, etc)
-			syscall.CLONE_NEWPID | // Isolated PID namespace
-			syscall.CLONE_NEWNET, // Isolated network environment
+			syscall.CLONE_NEWPID, // Isolated PID namespace
+		// syscall.CLONE_NEWNET, // Isolated network environment
 
 		// This requires more magic if we want to really chroot somewhere (by itself it does not do much)
 		// syscall.CLONE_NEWNS | // Isolated mount namespace

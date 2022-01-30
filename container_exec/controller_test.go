@@ -27,8 +27,8 @@ func TestContainerExecController_StartCommand(t *testing.T) {
 		})
 
 		Convey("Uses a unique command id as the key for the command set", func() {
-			cmd1 := c.StartCommand([]string{"echo", "banana1"})
-			cmd2 := c.StartCommand([]string{"echo", "banana2"})
+			cmd1, _ := c.StartCommand([]string{"echo", "banana1"})
+			cmd2, _ := c.StartCommand([]string{"echo", "banana2"})
 			So(c.commands[cmd1.CommandId], ShouldEqual, cmd1)
 			So(c.commands[cmd2.CommandId], ShouldEqual, cmd2)
 			So(cmd1.CommandId, ShouldNotResemble, cmd2.CommandId)
@@ -41,8 +41,12 @@ func TestContainerExecController_Close(t *testing.T) {
 		c := NewController()
 
 		Convey("Should close all commands", func() {
-			cmd1_id := c.StartCommand([]string{"echo", "banana1"}).CommandId
-			cmd2_id := c.StartCommand([]string{"echo", "banana2"}).CommandId
+			cmd1, _ := c.StartCommand([]string{"echo", "banana1"})
+			cmd1_id := cmd1.CommandId
+
+			cmd2, _ := c.StartCommand([]string{"echo", "banana2"})
+			cmd2_id := cmd2.CommandId
+
 			So(c.commands, ShouldContainKey, cmd1_id)
 			So(c.commands, ShouldContainKey, cmd2_id)
 			c.Close()
