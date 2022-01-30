@@ -152,7 +152,7 @@ The detailed GRPC definition for the proposed API can be found within the [remot
 
 ### Library design
 
-Most of concerns around containerization will be isolated within the `container_exec` library developed for this project, allowing us to have a very simple GRPC server around the library. This should make it easier to test the containerization code and contain most of the complexity (dealing with Linux APIs, process management, logs management, concurrency concerns, etc) the library.
+Most of concerns around containerization will be isolated within the `containerize` library developed for this project, allowing us to have a very simple GRPC server around the library. This should make it easier to test the containerization code and contain most of the complexity (dealing with Linux APIs, process management, logs management, concurrency concerns, etc) the library.
 
 In a production scenario, this approach would make it possible to potentially reuse the library in multiple different systems (see ContainerD core services or the Moby project and its usage within Docker).
 

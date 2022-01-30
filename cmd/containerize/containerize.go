@@ -8,12 +8,12 @@ import (
 	"os"
 	"os/signal"
 	"strings"
-	"teleport-exec/container_exec"
+	"teleport-exec/containerize"
 	"time"
 )
 
 func main() {
-	controller := container_exec.NewController()
+	controller := containerize.NewController()
 	defer controller.Close()
 
 	if len(os.Args) < 2 {
