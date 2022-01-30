@@ -28,7 +28,7 @@ func main() {
 	}
 
 	// Timeout tailing after a while
-	timeout_ctx, timeout_cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	timeout_ctx, timeout_cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer timeout_cancel()
 
 	// Stop the stream when cancelled via Ctrl+C
