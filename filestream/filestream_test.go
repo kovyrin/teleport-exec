@@ -104,6 +104,13 @@ func TestFileStream_MoreBytes(t *testing.T) {
 			So(err, ShouldEqual, io.EOF)
 		})
 
+		Convey("Should return an EOF without attempting to read if called after closing", func() {
+			stream.Close()
+			read_bytes, err := stream.Read(buffer)
+			So(err, ShouldEqual, io.EOF)
+			So(read_bytes, ShouldEqual, 0)
+		})
+
 		Reset(func() {
 			stream.Close()
 			os.Remove(file_name)

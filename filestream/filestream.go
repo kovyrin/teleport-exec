@@ -111,12 +111,20 @@ func (s *FileStream) readBlock(buffer []byte) (int, error) {
 // Returns the data available in the stream and blocks for more data if the stream is empty.
 func (s *FileStream) Read(buffer []byte) (int, error) {
 	for {
+		// Do not attempt to read if we're already closed
+		select {
+		case <-s.done:
+			return 0, io.EOF
+		default:
+		}
+
+		// Get some data if possible
 		read_bytes, err := s.readBlock(buffer)
 		if err != nil || read_bytes > 0 {
 			return read_bytes, err
 		}
 
-		// If we stopped before any content is available, we need to abort
+		// Wait until we have more data to read or if we're stopped by context or a Close() call
 		if !s.waitForChanges() {
 			return 0, io.EOF
 		}
