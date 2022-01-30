@@ -22,11 +22,14 @@ func NewController() *Controller {
 }
 
 //-------------------------------------------------------------------------------------------------
-func (c *Controller) StartCommand(command []string) *Command {
+func (c *Controller) StartCommand(command []string) (*Command, error) {
 	cmd := NewCommand(command)
-	cmd.Start()
+	err := cmd.Start()
+	if err != nil {
+		return nil, err
+	}
 	c.commands[cmd.CommandId] = &cmd
-	return &cmd
+	return &cmd, nil
 }
 
 //-------------------------------------------------------------------------------------------------

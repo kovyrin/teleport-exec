@@ -61,23 +61,47 @@ func TestProcessNewLogStream(t *testing.T) {
 	Convey("When NewLogStream() is called", t, func() {
 		id := uuid.NewString()
 		pl, _ := NewProcessLog(id)
-		stream, err := pl.NewLogStream(ctx)
 
-		Convey("It should return a file reader for the log", func() {
-			So(stream, ShouldNotBeNil)
-			So(err, ShouldBeNil)
+		Convey("For a command that is still running", func() {
+			stream, err := pl.NewLogStream(ctx, true)
+
+			Convey("It should return a file reader for the log", func() {
+				So(stream, ShouldNotBeNil)
+				So(err, ShouldBeNil)
+			})
+
+			Convey("It should record the reader to be closed later", func() {
+				So(pl.readers, ShouldContainKey, stream)
+			})
+
+			Convey("The returned reader could be used to consume the content from the file", func() {
+				pl.fd.WriteString("banana")
+				buffer := make([]byte, 100)
+				read_bytes, err := stream.Read(buffer)
+				So(string(buffer[:read_bytes]), ShouldResemble, "banana")
+				So(err, ShouldBeNil)
+			})
 		})
 
-		Convey("It should record the reader to be closed later", func() {
-			So(pl.readers, ShouldContainKey, stream)
-		})
+		Convey("For a command that has finished", func() {
+			stream, err := pl.NewLogStream(ctx, false)
 
-		Convey("The returned reader could be used to consume the content from the file", func() {
-			pl.fd.WriteString("banana")
-			buffer := make([]byte, 100)
-			read_bytes, err := stream.Read(buffer)
-			So(string(buffer[:read_bytes]), ShouldResemble, "banana")
-			So(err, ShouldBeNil)
+			Convey("It should return a file reader for the log", func() {
+				So(stream, ShouldNotBeNil)
+				So(err, ShouldBeNil)
+			})
+
+			Convey("It should record the reader to be closed later", func() {
+				So(pl.readers, ShouldContainKey, stream)
+			})
+
+			Convey("The returned reader could be used to consume the content from the file", func() {
+				pl.fd.WriteString("banana")
+				buffer := make([]byte, 100)
+				read_bytes, err := stream.Read(buffer)
+				So(string(buffer[:read_bytes]), ShouldResemble, "banana")
+				So(err, ShouldBeNil)
+			})
 		})
 
 		Reset(func() {
@@ -93,26 +117,52 @@ func TestProcessCloseLogStream(t *testing.T) {
 	Convey("When CloseReader() is called", t, func() {
 		id := uuid.NewString()
 		pl, _ := NewProcessLog(id)
-		stream, _ := pl.NewLogStream(ctx)
 
-		Convey("When called with a valid reader", func() {
+		Convey("For a command that is still running", func() {
+			stream, _ := pl.NewLogStream(ctx, true)
 			err := pl.CloseLogStream(stream)
 
-			Convey("It should return no error", func() {
-				So(err, ShouldBeNil)
+			Convey("When called with a valid reader", func() {
+				Convey("It should return no error", func() {
+					So(err, ShouldBeNil)
+				})
+
+				Convey("It should delete the reader from the readers list", func() {
+					So(pl.readers, ShouldNotContainKey, stream)
+				})
 			})
 
-			Convey("It should delete the reader from the readers list", func() {
-				So(pl.readers, ShouldNotContainKey, stream)
+			Convey("When called with an unknown reader", func() {
+				stream, _ := filestream.New(ctx, "/etc/passwd", true)
+				err := pl.CloseLogStream(stream)
+
+				Convey("It should return an error", func() {
+					So(err, ShouldNotBeNil)
+				})
 			})
 		})
 
-		Convey("When called with an unknown reader", func() {
-			stream, _ := filestream.New(ctx, "/etc/passwd")
+		Convey("For a command that has finished", func() {
+			stream, _ := pl.NewLogStream(ctx, false)
 			err := pl.CloseLogStream(stream)
 
-			Convey("It should return an error", func() {
-				So(err, ShouldNotBeNil)
+			Convey("When called with a valid reader", func() {
+				Convey("It should return no error", func() {
+					So(err, ShouldBeNil)
+				})
+
+				Convey("It should delete the reader from the readers list", func() {
+					So(pl.readers, ShouldNotContainKey, stream)
+				})
+			})
+
+			Convey("When called with an unknown reader", func() {
+				stream, _ := filestream.New(ctx, "/etc/passwd", true)
+				err := pl.CloseLogStream(stream)
+
+				Convey("It should return an error", func() {
+					So(err, ShouldNotBeNil)
+				})
 			})
 		})
 
