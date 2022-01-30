@@ -19,19 +19,15 @@ func main() {
 	log.Println("Tailing file:", file_name)
 
 	// Timeout tailing after a while
-	timeout_ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
+	timeout_ctx, timeout_cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer timeout_cancel()
 
 	// Stop the stream when cancelled via Ctrl+C
-	c := make(chan os.Signal, 1)
-	signal.Notify(c, os.Interrupt)
-	go func() {
-		<-c
-		cancel()
-	}()
+	interrupt_ctx, interrupt_cancel := signal.NotifyContext(timeout_ctx, os.Interrupt)
+	defer interrupt_cancel()
 
 	// Start a new stream from the file
-	stream, err := filestream.New(timeout_ctx, file_name)
+	stream, err := filestream.New(interrupt_ctx, file_name)
 	if err != nil {
 		log.Fatalln("Failed to initialize a file stream:", err)
 	}
