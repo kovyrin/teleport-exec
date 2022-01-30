@@ -2,7 +2,8 @@ package container_exec
 
 import (
 	"context"
-	"log"
+	"errors"
+	"fmt"
 	"os/exec"
 	"runtime"
 	"sync"
@@ -39,7 +40,7 @@ func NewCommand(command []string) Command {
 // Starts the command in a separate thread
 func (s *Command) Start() error {
 	if s.executor != nil {
-		log.Fatalln("The command is already running!")
+		return errors.New("command is already running")
 	}
 
 	// Lock the state while we're changing stuff around here
@@ -67,9 +68,8 @@ func (s *Command) Start() error {
 
 	err = s.executor.Start()
 	if err != nil {
-		log.Printf("Failed to run command '%s': %v", s.Command, err)
 		s.failure = err
-		return nil
+		return fmt.Errorf("failed to run command '%s': %v", s.Command, err)
 	}
 	s.running = true
 
@@ -161,16 +161,24 @@ func killPg(pgid int) error {
 }
 
 //-------------------------------------------------------------------------------------------------
-func (s *Command) ResultCode() *int32 {
+func (s *Command) ResultCode() (int, error) {
 	if s.Running() {
-		return nil
+		return 0, errors.New("no result code available for a running command")
 	}
 
 	s.commandMutex.RLock()
 	defer s.commandMutex.RUnlock()
+	return s.executor.ProcessState.ExitCode(), nil
+}
 
-	result := int32(s.executor.ProcessState.ExitCode())
-	return &result
+func (s *Command) ResultDescription() (string, error) {
+	if s.Running() {
+		return "", errors.New("no result description available for a running command")
+	}
+
+	s.commandMutex.RLock()
+	defer s.commandMutex.RUnlock()
+	return s.executor.ProcessState.String(), nil
 }
 
 //-------------------------------------------------------------------------------------------------

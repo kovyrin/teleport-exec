@@ -118,9 +118,9 @@ func TestCommand_ResultCode(t *testing.T) {
 			cmd.Start()
 			cmd.Wait()
 			So(cmd.Running(), ShouldBeFalse)
-			code := cmd.ResultCode()
-			So(code, ShouldNotBeNil)
-			So(*code, ShouldEqual, 0)
+			code, err := cmd.ResultCode()
+			So(err, ShouldBeNil)
+			So(code, ShouldEqual, 0)
 		})
 
 		Convey("Returns the right code when a command fails", func() {
@@ -128,17 +128,17 @@ func TestCommand_ResultCode(t *testing.T) {
 			cmd.Start()
 			cmd.Wait()
 			So(cmd.Running(), ShouldBeFalse)
-			code := cmd.ResultCode()
-			So(code, ShouldNotBeNil)
-			So(*code, ShouldEqual, 1)
+			code, err := cmd.ResultCode()
+			So(err, ShouldBeNil)
+			So(code, ShouldEqual, 1)
 		})
 
-		Convey("Returns nil if the command is still running", func() {
+		Convey("Returns an error if the command is still running", func() {
 			cmd := NewCommand([]string{"sleep", "1"})
 			cmd.Start()
 			So(cmd.Running(), ShouldBeTrue)
-			code := cmd.ResultCode()
-			So(code, ShouldBeNil)
+			_, err := cmd.ResultCode()
+			So(err, ShouldNotBeNil)
 		})
 	})
 }
