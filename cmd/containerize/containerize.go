@@ -7,6 +7,7 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"strings"
 	"teleport-exec/container_exec"
 	"time"
 )
@@ -19,7 +20,12 @@ func main() {
 		fmt.Println("Usage: containerize.go command args...")
 		os.Exit(1)
 	}
-	cmd := controller.StartCommand(os.Args[1:])
+
+	// Try to start the command
+	cmd, err := controller.StartCommand(os.Args[1:])
+	if err != nil {
+		log.Fatalln("Error:", err)
+	}
 
 	// Timeout tailing after a while
 	timeout_ctx, timeout_cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -38,10 +44,10 @@ func main() {
 
 	// Stream content until the stream is terminated
 	buffer := make([]byte, 100)
+	fmt.Println(strings.Repeat("-", 80))
 	for {
 		read_bytes, err := stream.Read(buffer)
 		if err == io.EOF {
-			log.Println("The stream has been stopped")
 			break
 		}
 		if err != nil {
@@ -49,4 +55,13 @@ func main() {
 		}
 		os.Stdout.Write(buffer[:read_bytes])
 	}
+	fmt.Println(strings.Repeat("-", 80))
+
+	// Stop the command, wait for it to stop and exit status to become available
+	cmd.Close()
+	exit_code, _ := cmd.ResultCode()
+	exit_status, _ := cmd.ResultDescription()
+
+	fmt.Printf("Exit code: %d\n", exit_code)
+	fmt.Printf("Status: %s\n", exit_status)
 }
