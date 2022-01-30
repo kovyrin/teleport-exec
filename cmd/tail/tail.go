@@ -41,7 +41,7 @@ func main() {
 			break
 		}
 		if err != nil {
-			log.Fatalln("Error while reading the stream:", err)
+			log.Println("Error while reading the stream:", err)
 			log.Println("The stream has been stopped")
 			break
 		}
