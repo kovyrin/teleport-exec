@@ -54,7 +54,7 @@ func (s *FileStream) Close() error {
 }
 
 //-------------------------------------------------------------------------------------------------
-func (s *FileStream) WaitForChanges() (changed bool) {
+func (s *FileStream) waitForChanges() (changed bool) {
 	result := make(chan bool)
 	go func() {
 		for {
