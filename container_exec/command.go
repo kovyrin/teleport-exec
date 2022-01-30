@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
 	"os/exec"
 	"runtime"
 	"sync"
@@ -46,6 +47,8 @@ func (s *Command) Start() error {
 	// Lock the state while we're changing stuff around here
 	s.commandMutex.Lock()
 	defer s.commandMutex.Unlock()
+
+	log.Printf("Starting command '%s' with %d args: %v", s.Command, len(s.Args), s.Args)
 
 	// Set up the command execution
 	s.executor = exec.Command(s.Command, s.Args...)
