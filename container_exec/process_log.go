@@ -59,6 +59,17 @@ func (l *ProcessLog) Close() (err error) {
 }
 
 //-------------------------------------------------------------------------------------------------
+// Tells all readers to stop waiting for more content since the log is complete (command is done)
+func (l *ProcessLog) LogComplete() {
+	l.readersLock.Lock()
+	defer l.readersLock.Unlock()
+
+	for reader := range l.readers {
+		reader.DisableTail()
+	}
+}
+
+//-------------------------------------------------------------------------------------------------
 // Returns a new file reader for the log.
 func (l *ProcessLog) NewLogStream(ctx context.Context) (*filestream.FileStream, error) {
 	l.readersLock.Lock()

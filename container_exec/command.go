@@ -80,6 +80,9 @@ func (s *Command) Start() error {
 		s.commandMutex.Lock()
 		s.running = false
 		s.commandMutex.Unlock()
+
+		// Let all log streams know that there is no reason to wait for more output anymore
+		s.log.LogComplete()
 	}()
 
 	return nil
@@ -205,7 +208,7 @@ func (s *Command) Close() {
 
 //-------------------------------------------------------------------------------------------------
 func (s *Command) NewLogStream(ctx context.Context) (*filestream.FileStream, error) {
-	return s.log.NewLogStream(ctx)
+	return s.log.NewLogStream(ctx, s.Running())
 }
 
 func (s *Command) CloseLogStream(log *filestream.FileStream) error {
