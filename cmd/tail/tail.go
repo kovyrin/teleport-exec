@@ -26,8 +26,8 @@ func main() {
 	interrupt_ctx, interrupt_cancel := signal.NotifyContext(timeout_ctx, os.Interrupt)
 	defer interrupt_cancel()
 
-	// Start a new stream from the file
-	stream, err := filestream.New(interrupt_ctx, file_name)
+	// Start a new stream from the file in a tail mode
+	stream, err := filestream.New(interrupt_ctx, file_name, true)
 	if err != nil {
 		log.Fatalln("Failed to initialize a file stream:", err)
 	}
