@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"sync"
 
 	"github.com/fsnotify/fsnotify"
 )
@@ -14,8 +15,10 @@ type FileStream struct {
 	reader    *os.File
 	watcher   *fsnotify.Watcher
 
-	// Used to abort streaming when a client disconnects, etc
-	ctx context.Context
+	mu       sync.Mutex      // Protects access to the stream data
+	done     chan bool       // A channel for letting the reader know that the stream is closed
+	isClosed bool            // Set to true when Close() is first called
+	ctx      context.Context // Used to abort streaming when a client disconnects, etc
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -40,17 +43,29 @@ func New(ctx context.Context, file_name string) (*FileStream, error) {
 		reader:    file,
 		watcher:   watcher,
 		ctx:       ctx,
+		done:      make(chan bool),
 	}, nil
 }
 
 //-------------------------------------------------------------------------------------------------
 // Closes the fsnotify watcher and the underlying file stream
 func (s *FileStream) Close() error {
-	err := s.watcher.Close()
-	if err == nil {
-		err = s.reader.Close()
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	// Prevent double-close
+	if s.isClosed {
+		return nil
 	}
-	return err
+	s.isClosed = true
+
+	// Send a "quit" message to the reader goroutine
+	close(s.done)
+
+	// Close both the watcher and the file reader,
+	// Return possible errors from the file reader since the watcher always returns nil
+	s.watcher.Close()
+	return s.reader.Close()
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -64,6 +79,9 @@ func (s *FileStream) waitForChanges() (changed bool) {
 					result <- true
 					return
 				}
+			case <-s.done:
+				result <- false
+				return
 			case <-s.ctx.Done():
 				result <- false
 				return

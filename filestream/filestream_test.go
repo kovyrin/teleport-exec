@@ -87,9 +87,35 @@ func TestFileStream_MoreBytes(t *testing.T) {
 			So(err, ShouldEqual, io.EOF)
 		})
 
+		Convey("Should return an EOF when stopped by closing", func() {
+			// Read all data
+			stream.Read(buffer)
+
+			// Stop reading by closing the stream in a second
+			go func() {
+				time.Sleep(time.Second)
+				stream.Close()
+			}()
+
+			// Try to read more and block
+			_, err := stream.Read(buffer)
+
+			// Should return an EOF after being stopped
+			So(err, ShouldEqual, io.EOF)
+		})
+
 		Reset(func() {
 			stream.Close()
 			os.Remove(file_name)
+		})
+	})
+
+	Convey("filestream.Close()", t, func() {
+		stream, _ := New(ctx, "/etc/hosts")
+
+		Convey("Should not blow up when called twice and return no errors", func() {
+			So(stream.Close(), ShouldBeNil)
+			So(stream.Close(), ShouldBeNil)
 		})
 	})
 }

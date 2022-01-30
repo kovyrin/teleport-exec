@@ -12,4 +12,4 @@ RUN go mod download
 
 # Add all of our code
 COPY . /app
-ENTRYPOINT ["go", "test", "-v", "./..."]
+ENTRYPOINT ["go", "test", "-race", "-v", "./..."]
