@@ -15,6 +15,7 @@ require (
 )
 
 require (
+	github.com/docker/engine v1.13.1
 	github.com/fsnotify/fsnotify v1.5.1
 	github.com/golang/protobuf v1.4.3 // indirect
 	github.com/google/uuid v1.3.0
