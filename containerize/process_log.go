@@ -87,7 +87,7 @@ func (l *ProcessLog) NewLogStream(ctx context.Context, tail bool) (stream *files
 	return stream, err
 }
 
-// Returns a new file reader for the log.
+// Closes the log stream, including all active readers and deletes the log file
 func (l *ProcessLog) CloseLogStream(stream *filestream.FileStream) error {
 	l.readersLock.Lock()
 	defer l.readersLock.Unlock()
