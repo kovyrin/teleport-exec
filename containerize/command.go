@@ -14,7 +14,6 @@ import (
 	"syscall"
 	"teleport-exec/cgroups"
 	"teleport-exec/filestream"
-	"time"
 
 	"github.com/google/uuid"
 	"go.uber.org/multierr"
@@ -22,43 +21,27 @@ import (
 
 //-------------------------------------------------------------------------------------------------
 type Command struct {
-	CommandId    string
-	Command      string
-	Args         []string
-	executor     *exec.Cmd
-	log          *ProcessLog
-	running      bool
-	failure      error
-	commandMutex sync.RWMutex
-	cgroup       *cgroups.Container
+	CommandId string
+	Command   string
+	Args      []string
+	executor  *exec.Cmd
+	log       *ProcessLog
+	running   bool
+	failure   error
+	mu        sync.RWMutex
+	cgroup    *cgroups.Container
+	done      chan bool
 }
 
 //-------------------------------------------------------------------------------------------------
-func NewCommand(command []string) Command {
-	return Command{
+func NewCommand(command []string) (*Command, error) {
+	c := Command{
 		CommandId: uuid.NewString(),
 		Command:   command[0],
 		Args:      command[1:],
 		running:   false,
+		done:      make(chan bool),
 	}
-}
-
-//-------------------------------------------------------------------------------------------------
-// Starts the command in a separate thread
-func (c *Command) Start() error {
-	if c.executor != nil {
-		return errors.New("command is already running")
-	}
-
-	// Lock the state while we're changing stuff around here
-	c.commandMutex.Lock()
-	defer c.commandMutex.Unlock()
-
-	// On Linux, pdeathsig will kill the child process when the thread dies,
-	// not when the process dies. runtime.LockOSThread ensures that as long
-	// as this function is executing that OS thread will still be around
-	runtime.LockOSThread()
-	defer runtime.UnlockOSThread()
 
 	// Set up the command execution
 	cmd := exec.Command(c.Command, c.Args...)
@@ -71,21 +54,39 @@ func (c *Command) Start() error {
 	// Redirect command output to a command-specific log (so that we could read/stream it later)
 	pl, err := NewProcessLog(c.CommandId)
 	if err != nil {
-		return fmt.Errorf("failed to set up logging for command '%s': %w", c.CommandId, err)
+		return nil, fmt.Errorf("failed to set up logging for command '%s': %w", c.CommandId, err)
 	}
 	c.log = pl
 	cmd.Stdout = pl.fd
 	cmd.Stderr = pl.fd
 
+	return &c, nil
+}
+
+//-------------------------------------------------------------------------------------------------
+// Starts the command in a separate thread
+func (c *Command) Start() error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if c.running {
+		return errors.New("command is already running")
+	}
+
+	// On Linux, pdeathsig will kill the child process when the thread dies,
+	// not when the process dies. runtime.LockOSThread ensures that as long
+	// as this function is executing that OS thread will still be around
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
 	log.Printf("Starting command '%s' with %d args: %v", c.Command, len(c.Args), c.Args)
-	if err := cmd.Start(); err != nil {
+	if err := c.executor.Start(); err != nil {
 		c.failure = err
 		return fmt.Errorf("failed to run command '%s': %v", c.Command, err)
 	}
 	c.running = true
 
-	err = c.setupLimits()
-	if err != nil {
+	if err := c.setupLimits(); err != nil {
 		return fmt.Errorf("failed to set up resource limits: %w", err)
 	}
 
@@ -97,15 +98,19 @@ func (c *Command) Start() error {
 
 //-------------------------------------------------------------------------------------------------
 func (c *Command) waitForCompletion() {
+	// Block until command is done and get the exit status
 	c.executor.Wait()
 
 	// Now that the process is dead, update the running state accordingly
-	c.commandMutex.Lock()
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	c.running = false
-	c.commandMutex.Unlock()
 
 	// Let all log streams know that there is no reason to wait for more output anymore
 	c.log.LogComplete()
+
+	// Let all Wait() calls know we're done with the command
+	close(c.done)
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -192,26 +197,24 @@ func (c *Command) sysProcAttr() *syscall.SysProcAttr {
 //-------------------------------------------------------------------------------------------------
 // Returns true if the command is still running
 func (c *Command) Running() bool {
-	c.commandMutex.RLock()
+	c.mu.RLock()
 	running := c.running
-	c.commandMutex.RUnlock()
+	c.mu.RUnlock()
 	return running
 }
 
 // Waits for the process to finish (without relying on waitpid, which destroys process exit status info)
 func (c *Command) Wait() {
-	for c.Running() {
-		time.Sleep(100 * time.Millisecond)
-	}
+	<-c.done
 }
 
 //-------------------------------------------------------------------------------------------------
 // Terminates the command if it is running (including all sub-processes)
 func (c *Command) Kill() {
-	if c.Running() {
-		c.commandMutex.Lock()
-		defer c.commandMutex.Unlock()
+	c.mu.Lock()
+	defer c.mu.Unlock()
 
+	if c.running {
 		// Kill the whole process group
 		killPg(c.pid())
 	}
@@ -231,8 +234,8 @@ func (c *Command) ResultCode() (int, error) {
 		return 0, errors.New("no result code available for a running command")
 	}
 
-	c.commandMutex.RLock()
-	defer c.commandMutex.RUnlock()
+	c.mu.RLock()
+	defer c.mu.RUnlock()
 	return c.executor.ProcessState.ExitCode(), nil
 }
 
@@ -241,15 +244,15 @@ func (c *Command) ResultDescription() (string, error) {
 		return "", errors.New("no result description available for a running command")
 	}
 
-	c.commandMutex.RLock()
-	defer c.commandMutex.RUnlock()
+	c.mu.RLock()
+	defer c.mu.RUnlock()
 	return c.executor.ProcessState.String(), nil
 }
 
 //-------------------------------------------------------------------------------------------------
 func (c *Command) Failure() error {
-	c.commandMutex.RLock()
-	defer c.commandMutex.RUnlock()
+	c.mu.RLock()
+	defer c.mu.RUnlock()
 	return c.failure
 }
 

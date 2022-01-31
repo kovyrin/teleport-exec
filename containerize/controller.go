@@ -23,13 +23,18 @@ func NewController() *Controller {
 
 //-------------------------------------------------------------------------------------------------
 func (c *Controller) StartCommand(command []string) (*Command, error) {
-	cmd := NewCommand(command)
-	err := cmd.Start()
+	cmd, err := NewCommand(command)
 	if err != nil {
 		return nil, err
 	}
-	c.commands[cmd.CommandId] = &cmd
-	return &cmd, nil
+
+	err = cmd.Start()
+	if err != nil {
+		return nil, err
+	}
+
+	c.commands[cmd.CommandId] = cmd
+	return cmd, nil
 }
 
 //-------------------------------------------------------------------------------------------------
