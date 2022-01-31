@@ -3,6 +3,7 @@ package cgroups
 import (
 	"fmt"
 	"os"
+	"strconv"
 )
 
 //-------------------------------------------------------------------------------------------------
@@ -35,20 +36,24 @@ func (c *Container) controlPath(control_file string) string {
 	return c.groupPath() + "/" + control_file
 }
 
-//-------------------------------------------------------------------------------------------------
-func (c *Container) AddProcess(pid int) error {
-	return retryingWriteFile(c.controlPath("cgroup.procs"), fmt.Sprintf("%d", pid), 0644)
+func (c *Container) writeControl(control_file string, content string) error {
+	return os.WriteFile(c.controlPath(control_file), []byte(content), 0644)
 }
 
 //-------------------------------------------------------------------------------------------------
+func (c *Container) AddProcess(pid int) error {
+	return c.writeControl("cgroup.procs", fmt.Sprintf("%d", pid))
+}
+
+//------------------------------------------------------------------------------------------------
 func (c *Container) MemoryLimitBytes(limit uint) error {
-	return retryingWriteFile(c.controlPath("memory.max"), fmt.Sprintf("%d", limit), 0644)
+	return c.writeControl("memory.max", strconv.Itoa(int(limit)))
 }
 
 func (c *Container) IoWeight(limit uint) error {
-	return retryingWriteFile(c.controlPath("io.bfq.weight"), fmt.Sprintf("default %d", limit), 0644)
+	return c.writeControl("io.bfq.weight", fmt.Sprintf("default %d", limit))
 }
 
 func (c *Container) CpuLimitPct(percent uint) error {
-	return retryingWriteFile(c.controlPath("cpu.max"), fmt.Sprintf("%d 1000000", percent*10000), 0644)
+	return c.writeControl("cpu.max", fmt.Sprintf("%d 1000000", percent*10000))
 }
