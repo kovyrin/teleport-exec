@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"errors"
 	"fmt"
+	"log"
 	"os"
 	"strings"
 )
@@ -13,6 +14,8 @@ const rootPath = "/sys/fs/cgroup/containerize"
 //-------------------------------------------------------------------------------------------------
 // Sets up cgroups support before we could use it for per-process limits
 func Setup() error {
+	log.Println("Setting up cgroups for containerized command execution...")
+
 	// Make sure we have cgroup2 enabled
 	mounted, err := cgroup2Mounted()
 	if err != nil {
@@ -57,5 +60,6 @@ func cgroup2Mounted() (bool, error) {
 //-------------------------------------------------------------------------------------------------
 // Cleans up our cgroups before process shutdown
 func TearDown() error {
+	log.Println("Cleaning up cgroups...")
 	return os.RemoveAll(rootPath)
 }
