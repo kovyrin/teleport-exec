@@ -29,7 +29,8 @@ func main() {
 	// Try to start the command
 	cmd, err := controller.StartCommand(os.Args[1:])
 	if err != nil {
-		log.Fatalln("Error:", err)
+		log.Println("Error:", err)
+		os.Exit(1)
 	}
 
 	// Timeout tailing after a while
@@ -43,7 +44,8 @@ func main() {
 	// Start tailing the command output
 	stream, err := cmd.NewLogStream(interrupt_ctx)
 	if err != nil {
-		log.Fatalln("Failed to start a log stream:", err)
+		log.Println("Failed to start a log stream:", err)
+		os.Exit(1)
 	}
 	defer stream.Close()
 
