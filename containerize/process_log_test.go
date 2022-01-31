@@ -35,20 +35,24 @@ func TestProcessLogClose(t *testing.T) {
 	Convey("When Close() is called", t, func() {
 		id := uuid.NewString()
 		pl, err := NewProcessLog(id)
+		So(err, ShouldBeNil)
 
 		Convey("It should delete the log file", func() {
-			So(err, ShouldBeNil)
-
 			// Check that the file exists
 			_, stat_err := os.Stat(pl.FileName())
 			So(stat_err, ShouldBeNil)
 
 			// Close the stream and delete the file
-			pl.Close()
+			So(pl.Close(), ShouldBeNil)
 
 			// Make sure the file is gone
 			_, stat_err = os.Stat(pl.FileName())
 			So(stat_err, ShouldNotBeNil)
+		})
+
+		Convey("Should not blow up when called multiple times", func() {
+			So(pl.Close(), ShouldBeNil)
+			So(pl.Close(), ShouldBeNil)
 		})
 	})
 }
@@ -117,7 +121,7 @@ func TestProcessCloseLogStream(t *testing.T) {
 		id := uuid.NewString()
 		pl, _ := NewProcessLog(id)
 
-		Convey("For a command that is still running", func() {
+		Convey("For a command that is still running (tail mode)", func() {
 			stream, _ := pl.NewLogStream(ctx, true)
 			err := pl.CloseLogStream(stream)
 
