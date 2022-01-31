@@ -1,10 +1,15 @@
 package containerize
 
 import (
+	"teleport-exec/cgroups"
 	"testing"
 
 	. "github.com/smartystreets/goconvey/convey"
 )
+
+func init() {
+	cgroups.Setup()
+}
 
 //-------------------------------------------------------------------------------------------------
 func TestNewCommand(t *testing.T) {
@@ -16,6 +21,10 @@ func TestNewCommand(t *testing.T) {
 			So(cmd.Command, ShouldResemble, command[0])
 			So(cmd.Args, ShouldResemble, command[1:])
 		})
+
+		Convey("It should set up the executor", func() {
+			So(cmd.executor, ShouldNotBeNil)
+		})
 	})
 }
 
@@ -25,11 +34,6 @@ func TestStart(t *testing.T) {
 		command := []string{"true"}
 		cmd, _ := NewCommand(command)
 
-		Convey("It should set up the executor", func() {
-			cmd.Start()
-			So(cmd.executor, ShouldNotBeNil)
-		})
-
 		Convey("It should redirect standard output and error streams", func() {
 			cmd.Start()
 			So(cmd.executor.Stdout, ShouldNotBeNil)
@@ -37,21 +41,24 @@ func TestStart(t *testing.T) {
 		})
 
 		Convey("It should actually run the command", func() {
-			cmd.Start()
+			err := cmd.Start()
+			So(err, ShouldBeNil)
 			cmd.Wait()
 			So(cmd.executor.ProcessState.Exited(), ShouldBeTrue)
 			So(cmd.executor.ProcessState.ExitCode(), ShouldEqual, 0)
-			So(cmd.Failure(), ShouldBeNil)
 		})
 
 		Convey("When we fail to run a command", func() {
 			command := []string{"banana"}
 			cmd, _ = NewCommand(command)
-			cmd.Start()
-			cmd.Wait()
+			err := cmd.Start()
 
 			Convey("It should capture the error", func() {
-				So(cmd.Failure(), ShouldNotBeNil)
+				So(err, ShouldNotBeNil)
+			})
+
+			Convey("Should still allow a Wait() call", func() {
+				cmd.Wait() // Should just exit and not block or blow up
 			})
 		})
 
@@ -68,17 +75,27 @@ func TestStart(t *testing.T) {
 			})
 		})
 
+		Convey("Should return an error when called multiple times", func() {
+			So(cmd.Start(), ShouldBeNil)
+			So(cmd.Start(), ShouldNotBeNil)
+		})
+
+		Convey("Should not allow multiple starts even after the first one is done", func() {
+			So(cmd.Start(), ShouldBeNil)
+			cmd.Wait()
+			So(cmd.Start(), ShouldNotBeNil)
+		})
 	})
 }
 
 //-------------------------------------------------------------------------------------------------
 func TestRunning(t *testing.T) {
 	Convey("Running()", t, func() {
-		command := []string{"true"}
-		cmd, _ := NewCommand(command)
+		cmd, _ := NewCommand([]string{"sleep", "1"})
+		err := cmd.Start()
+		So(err, ShouldBeNil)
 
 		Convey("When a command has finished", func() {
-			cmd.Start()
 			cmd.Wait()
 			Convey("It should return false", func() {
 				So(cmd.Running(), ShouldBeFalse)
@@ -86,9 +103,7 @@ func TestRunning(t *testing.T) {
 		})
 
 		Convey("When a command is still running", func() {
-			command = []string{"sleep", "1"}
-			cmd.Start()
-			Convey("It should return true", func() {
+			Convey("It should return true until the command is done", func() {
 				So(cmd.Running(), ShouldBeTrue)
 				cmd.Wait()
 				So(cmd.Running(), ShouldBeFalse)
@@ -108,9 +123,17 @@ func TestCommandClose(t *testing.T) {
 			So(cmd.Running(), ShouldBeFalse)
 			So(cmd.executor.ProcessState.Success(), ShouldBeFalse)
 		})
+
+		Convey("It should not blow up when called multiple times", func() {
+			cmd, _ := NewCommand([]string{"sleep", "5"})
+			cmd.Start()
+			So(cmd.Close(), ShouldBeNil)
+			So(cmd.Close(), ShouldBeNil)
+		})
 	})
 }
 
+//-------------------------------------------------------------------------------------------------
 func TestCommand_ResultCode(t *testing.T) {
 	Convey("ResultCode()", t, func() {
 		Convey("Returns 0 when a command succeeds", func() {
