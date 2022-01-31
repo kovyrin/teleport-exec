@@ -30,13 +30,21 @@ Here are a few examples that may be useful for testing:
 
 ```bash
 # Get some information about the system
-./script/containerize.sh ps ax
 ./script/containerize.sh ls -lR /
 ./script/containerize.sh cat /etc/passwd
 
-# Run a command that keeps streaming content until stopped (and demonstrates isolated networking)
-./script/containerize.sh bash -c "ip link set lo up; ip addr list;ping 127.0.0.1"
+# See process list isolation
+./script/containerize.sh ps ax
 
-# Test CPU limits
+# Test CPU limits ( run docker exec into the container to see the process pegged at 10% CPU)
 ./script/containerize.sh sha256sum /dev/zero
+
+# See UID isolation
+./script/containerize.sh id
+
+# See network isolation
+./script/containerize.sh ip addr list
+
+# Run a command that keeps streaming content until stopped
+./script/containerize.sh bash -c "while :; do ps ax; sleep 1; done"
 ```

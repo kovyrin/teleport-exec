@@ -5,8 +5,11 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"os"
 	"os/exec"
+	"os/user"
 	"runtime"
+	"strconv"
 	"sync"
 	"syscall"
 	"teleport-exec/cgroups"
@@ -50,52 +53,58 @@ func (c *Command) Start() error {
 	c.commandMutex.Lock()
 	defer c.commandMutex.Unlock()
 
-	// Set up the command execution
-	c.executor = exec.Command(c.Command, c.Args...)
-	c.executor.SysProcAttr = c.sysProcAttr()
-
-	// Redirect command output to a command-specific log (so that we could read/stream it later)
-	pl, err := NewProcessLog(c.CommandId)
-	if err != nil {
-		return err
-	}
-	c.log = pl
-	c.executor.Stdout = pl.fd
-	c.executor.Stderr = pl.fd
-
 	// On Linux, pdeathsig will kill the child process when the thread dies,
 	// not when the process dies. runtime.LockOSThread ensures that as long
 	// as this function is executing that OS thread will still be around
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 
-	log.Printf("Starting command '%s' with %d args: %v", c.Command, len(c.Args), c.Args)
-	err = c.executor.Start()
+	// Set up the command execution
+	cmd := exec.Command(c.Command, c.Args...)
+	c.executor = cmd
+	cmd.SysProcAttr = c.sysProcAttr()
+	cmd.Env = []string{
+		"TERM=vt100",
+	}
+
+	// Redirect command output to a command-specific log (so that we could read/stream it later)
+	pl, err := NewProcessLog(c.CommandId)
 	if err != nil {
+		return fmt.Errorf("failed to set up logging for command '%s': %w", c.CommandId, err)
+	}
+	c.log = pl
+	cmd.Stdout = pl.fd
+	cmd.Stderr = pl.fd
+
+	log.Printf("Starting command '%s' with %d args: %v", c.Command, len(c.Args), c.Args)
+	if err := cmd.Start(); err != nil {
 		c.failure = err
 		return fmt.Errorf("failed to run command '%s': %v", c.Command, err)
 	}
 	c.running = true
 
-	log.Printf("Setting up resource limits for command '%s'", c.CommandId)
 	err = c.setupLimits()
 	if err != nil {
 		return fmt.Errorf("failed to set up resource limits: %w", err)
 	}
 
-	go func() {
-		c.executor.Wait()
-
-		// Now that the process is dead, update the running state accordingly
-		c.commandMutex.Lock()
-		c.running = false
-		c.commandMutex.Unlock()
-
-		// Let all log streams know that there is no reason to wait for more output anymore
-		c.log.LogComplete()
-	}()
+	// Start a separate thread waiting for the command to finish
+	go c.waitForCompletion()
 
 	return nil
+}
+
+//-------------------------------------------------------------------------------------------------
+func (c *Command) waitForCompletion() {
+	c.executor.Wait()
+
+	// Now that the process is dead, update the running state accordingly
+	c.commandMutex.Lock()
+	c.running = false
+	c.commandMutex.Unlock()
+
+	// Let all log streams know that there is no reason to wait for more output anymore
+	c.log.LogComplete()
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -106,6 +115,7 @@ func (c *Command) pid() int {
 //-------------------------------------------------------------------------------------------------
 // Sets up Cgroup-based limits for the process running the command
 func (c *Command) setupLimits() error {
+	log.Printf("Setting up resource limits for command '%s'", c.CommandId)
 	var err error
 
 	// Create a cgroup for this command
