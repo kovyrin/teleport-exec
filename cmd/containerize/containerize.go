@@ -55,7 +55,10 @@ func main() {
 	fmt.Println(strings.Repeat("-", 80))
 
 	// Stop the command, wait for it to stop and exit status to become available
-	cmd.Close()
+	if err := cmd.Close(); err != nil {
+		fmt.Println("Failed to close the command: %w", err)
+		os.Exit(1)
+	}
 	exit_code, _ := cmd.ResultCode()
 	exit_status, _ := cmd.ResultDescription()
 
