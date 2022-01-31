@@ -3,6 +3,7 @@ package cgroups
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"strconv"
 )
 
@@ -29,11 +30,11 @@ func (c *Container) Close() error {
 
 //-------------------------------------------------------------------------------------------------
 func (c *Container) groupPath() string {
-	return rootPath + "/" + c.container_id
+	return filepath.Join(rootPath, c.container_id)
 }
 
 func (c *Container) controlPath(control_file string) string {
-	return c.groupPath() + "/" + control_file
+	return filepath.Join(c.groupPath(), control_file)
 }
 
 func (c *Container) writeControl(control_file string, content string) error {
