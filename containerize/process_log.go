@@ -7,6 +7,8 @@ import (
 	"os"
 	"sync"
 	"teleport-exec/filestream"
+
+	"go.uber.org/multierr"
 )
 
 //-------------------------------------------------------------------------------------------------
@@ -15,14 +17,13 @@ type ProcessLog struct {
 	fd          *os.File
 	readers     map[*filestream.FileStream]bool
 	readersLock sync.Mutex
+	isClosed    bool
 }
 
 func NewProcessLog(command_id string) (*ProcessLog, error) {
-	file_name := "/tmp/command-" + command_id + ".out"
-
-	fd, err := os.Create(file_name)
+	fd, err := os.CreateTemp("", "command-"+command_id+".out")
 	if err != nil {
-		return nil, fmt.Errorf("failed to create a log file for command %s (%s): %w", command_id, file_name, err)
+		return nil, fmt.Errorf("failed to create a log file for command '%s': %w", command_id, err)
 	}
 
 	l := &ProcessLog{
@@ -44,18 +45,19 @@ func (l *ProcessLog) Close() (err error) {
 	l.readersLock.Lock()
 	defer l.readersLock.Unlock()
 
-	// Close the log and delete the log file
-	err = l.fd.Close()
-	if err == nil {
-		err = os.Remove(l.FileName())
+	// Prevent double-close
+	if l.isClosed {
+		return nil
 	}
+	l.isClosed = true
 
-	// Close all readers
+	// Close the log file and delete the file
+	err = multierr.Append(err, l.fd.Close())
+	err = multierr.Append(err, os.Remove(l.FileName()))
+
+	// Close all active readers
 	for reader := range l.readers {
-		err = reader.Close()
-		if err != nil {
-			return err
-		}
+		err = multierr.Append(err, reader.Close())
 	}
 
 	return err
