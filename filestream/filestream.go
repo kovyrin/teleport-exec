@@ -60,14 +60,13 @@ func (s *FileStream) TailEnabled() bool {
 }
 
 func (s *FileStream) DisableTail() {
-	if !s.TailEnabled() {
-		return
-	}
-
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.tailEnabled = false
-	close(s.logComplete) // Tell the reader to stop waiting for more content
+
+	if s.tailEnabled {
+		s.tailEnabled = false
+		close(s.logComplete) // Tell the reader to stop waiting for more content
+	}
 }
 
 //-------------------------------------------------------------------------------------------------
