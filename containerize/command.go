@@ -26,11 +26,16 @@ type Command struct {
 	Args      []string
 	executor  *exec.Cmd
 	log       *ProcessLog
-	running   bool
-	failure   error
-	mu        sync.RWMutex
-	cgroup    *cgroups.Container
-	done      chan bool
+
+	mu sync.RWMutex
+
+	cgroup *cgroups.Container
+
+	done chan bool // Used to notify all Wait() calls that the process has died
+
+	running  bool // Used to easily check the running status of the process without waitpid, etc
+	isClosed bool // Used to prevent double-close
+	started  bool // Used to prevent double-start
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -69,9 +74,10 @@ func (c *Command) Start() error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	if c.running {
+	if c.started {
 		return errors.New("command is already running")
 	}
+	c.started = true
 
 	// On Linux, pdeathsig will kill the child process when the thread dies,
 	// not when the process dies. runtime.LockOSThread ensures that as long
@@ -81,7 +87,6 @@ func (c *Command) Start() error {
 
 	log.Printf("Starting command '%s' with %d args: %v", c.Command, len(c.Args), c.Args)
 	if err := c.executor.Start(); err != nil {
-		c.failure = err
 		return fmt.Errorf("failed to run command '%s': %v", c.Command, err)
 	}
 	c.running = true
@@ -198,13 +203,15 @@ func (c *Command) sysProcAttr() *syscall.SysProcAttr {
 // Returns true if the command is still running
 func (c *Command) Running() bool {
 	c.mu.RLock()
-	running := c.running
-	c.mu.RUnlock()
-	return running
+	defer c.mu.RUnlock()
+	return c.running
 }
 
 // Waits for the process to finish (without relying on waitpid, which destroys process exit status info)
 func (c *Command) Wait() {
+	if !c.Running() {
+		return
+	}
 	<-c.done
 }
 
@@ -250,15 +257,16 @@ func (c *Command) ResultDescription() (string, error) {
 }
 
 //-------------------------------------------------------------------------------------------------
-func (c *Command) Failure() error {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-	return c.failure
-}
-
-//-------------------------------------------------------------------------------------------------
 // Closes log files, releases other resources used by the command
 func (c *Command) Close() (err error) {
+	// Prevent double-close
+	c.mu.Lock()
+	if c.isClosed {
+		return nil
+	}
+	c.isClosed = true
+	c.mu.Unlock()
+
 	// Make sure the process has stopped and we have a result status
 	c.Kill()
 	c.Wait()

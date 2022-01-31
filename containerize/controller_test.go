@@ -1,10 +1,15 @@
 package containerize
 
 import (
+	"teleport-exec/cgroups"
 	"testing"
 
 	. "github.com/smartystreets/goconvey/convey"
 )
+
+func init() {
+	cgroups.Setup()
+}
 
 func TestNewContainerExecController(t *testing.T) {
 	Convey("Generates a new controller", t, func() {
@@ -41,10 +46,12 @@ func TestContainerExecController_Close(t *testing.T) {
 		c := NewController()
 
 		Convey("Should close all commands", func() {
-			cmd1, _ := c.StartCommand([]string{"echo", "banana1"})
+			cmd1, err := c.StartCommand([]string{"echo", "banana1"})
+			So(err, ShouldBeNil)
 			cmd1_id := cmd1.CommandId
 
-			cmd2, _ := c.StartCommand([]string{"echo", "banana2"})
+			cmd2, err := c.StartCommand([]string{"echo", "banana2"})
+			So(err, ShouldBeNil)
 			cmd2_id := cmd2.CommandId
 
 			So(c.commands, ShouldContainKey, cmd1_id)

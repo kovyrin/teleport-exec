@@ -2,6 +2,8 @@ package containerize
 
 import (
 	"errors"
+	"log"
+	"sync"
 )
 
 type CommandStatus struct {
@@ -13,6 +15,7 @@ type CommandStatus struct {
 
 type Controller struct {
 	commands map[string]*Command
+	mu       sync.RWMutex
 }
 
 func NewController() *Controller {
@@ -28,17 +31,22 @@ func (c *Controller) StartCommand(command []string) (*Command, error) {
 		return nil, err
 	}
 
-	err = cmd.Start()
-	if err != nil {
+	if err = cmd.Start(); err != nil {
 		return nil, err
 	}
 
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	c.commands[cmd.CommandId] = cmd
+
 	return cmd, nil
 }
 
 //-------------------------------------------------------------------------------------------------
 func (c *Controller) FindCommand(command_id string) (*Command, error) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
 	cmd, ok := c.commands[command_id]
 	if !ok {
 		return nil, errors.New("Unknown command: " + command_id)
@@ -53,18 +61,26 @@ func (c *Controller) FinishCommand(command_id string) error {
 		return err
 	}
 
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
 	delete(c.commands, command_id)
 	cmd.Close()
+
 	return nil
 }
 
 //-------------------------------------------------------------------------------------------------
 func (c *Controller) Close() {
+
 	var uuids []string
+	c.mu.RLock()
 	for id := range c.commands {
 		uuids = append(uuids, id)
 	}
+	c.mu.RUnlock()
 
+	log.Printf("Closing %d commands...", len(uuids))
 	for _, id := range uuids {
 		c.FinishCommand(id)
 	}
@@ -72,6 +88,9 @@ func (c *Controller) Close() {
 
 //-------------------------------------------------------------------------------------------------
 func (c *Controller) Commands() (commands []CommandStatus) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
 	for command_id, cmd := range c.commands {
 		commands = append(commands, CommandStatus{
 			CommandId: command_id,
