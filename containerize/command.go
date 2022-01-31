@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"go.uber.org/multierr"
 )
 
 //-------------------------------------------------------------------------------------------------
@@ -254,20 +255,18 @@ func (c *Command) Failure() error {
 
 //-------------------------------------------------------------------------------------------------
 // Closes log files, releases other resources used by the command
-func (c *Command) Close() {
-	// Make sure the process has stopped
-	if c.Running() {
-		c.Kill()
-	}
-
-	// Make sure we release all the resources associated with the command
+func (c *Command) Close() (err error) {
+	// Make sure the process has stopped and we have a result status
+	c.Kill()
 	c.Wait()
 
 	// Close the log stream
-	c.log.Close()
+	err = multierr.Append(err, c.log.Close())
 
 	// Cleanup cgroups
-	c.cgroup.Close()
+	err = multierr.Append(err, c.cgroup.Close())
+
+	return err
 }
 
 //-------------------------------------------------------------------------------------------------
