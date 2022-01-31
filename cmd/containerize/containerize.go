@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/signal"
 	"strings"
+	"teleport-exec/cgroups"
 	"teleport-exec/containerize"
 	"time"
 )
@@ -21,6 +22,10 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Prepare cgroups support
+	cgroups.Setup()
+	defer cgroups.TearDown()
+
 	// Try to start the command
 	cmd, err := controller.StartCommand(os.Args[1:])
 	if err != nil {
@@ -28,7 +33,7 @@ func main() {
 	}
 
 	// Timeout tailing after a while
-	timeout_ctx, timeout_cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	timeout_ctx, timeout_cancel := context.WithTimeout(context.Background(), 15*time.Minute)
 	defer timeout_cancel()
 
 	// Stop the stream when cancelled via Ctrl+C
