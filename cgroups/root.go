@@ -29,7 +29,7 @@ func Setup() error {
 
 	// Enable controllers we need
 	subtree_control := rootPath + "/cgroup.subtree_control"
-	if err := retryingWriteFile(subtree_control, "+memory +io +cpu", 0644); err != nil {
+	if err := os.WriteFile(subtree_control, []byte("+memory +io +cpu"), 0644); err != nil {
 		return fmt.Errorf("failed to enable cgroup controllers for the root cgroup: %w", err)
 	}
 

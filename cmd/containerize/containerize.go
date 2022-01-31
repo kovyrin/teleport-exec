@@ -48,18 +48,8 @@ func main() {
 	defer stream.Close()
 
 	// Stream content until the stream is terminated
-	buffer := make([]byte, 100)
 	fmt.Println(strings.Repeat("-", 80))
-	for {
-		read_bytes, err := stream.Read(buffer)
-		if err == io.EOF {
-			break
-		}
-		if err != nil {
-			log.Fatalln("Error reading from the command stream:", err)
-		}
-		os.Stdout.Write(buffer[:read_bytes])
-	}
+	io.Copy(os.Stdout, stream)
 	fmt.Println(strings.Repeat("-", 80))
 
 	// Stop the command, wait for it to stop and exit status to become available
