@@ -132,6 +132,16 @@ func (c *Command) setupLimits() error {
 
 //-------------------------------------------------------------------------------------------------
 func (c *Command) sysProcAttr() *syscall.SysProcAttr {
+	// Get the UID for the nobody user
+	nobody_uid := 65534
+	nobody, err := user.Lookup("nobody")
+	if err == nil && nobody != nil {
+		uid, err := strconv.Atoi(nobody.Uid)
+		if err != nil {
+			nobody_uid = uid
+		}
+	}
+
 	attr := syscall.SysProcAttr{
 		// Use the same process group for all processed spawned by the command
 		// This is needed to make sure we can kill the whole tree at once
@@ -143,27 +153,26 @@ func (c *Command) sysProcAttr() *syscall.SysProcAttr {
 		// Isolate the process as needed
 		Cloneflags: syscall.CLONE_NEWUTS | // New UTS IPC namespace (isolated hostname, etc)
 			syscall.CLONE_NEWPID | // Isolated PID namespace
-			syscall.CLONE_NEWNET, // Isolated network environment
+			syscall.CLONE_NEWIPC | // Isolated IPC namespace
+			syscall.CLONE_NEWNET | // Isolated network environment
+			syscall.CLONE_NEWNS | // Isolated mount namespace
+			syscall.CLONE_NEWUSER, // Isolated user namespace
 
-		// This requires more magic if we want to really chroot somewhere (by itself it does not do much)
-		// syscall.CLONE_NEWNS | // Isolated mount namespace
-
-		// syscall.CLONE_NEWUSER | // Isolated user namespace
-		// Whatever uid/gid we use for the server will be mapped into root within the container
-		// UidMappings: []syscall.SysProcIDMap{
-		// 	{
-		// 		ContainerID: 0,
-		// 		HostID:      os.Getuid(),
-		// 		Size:        1,
-		// 	},
-		// },
-		// GidMappings: []syscall.SysProcIDMap{
-		// 	{
-		// 		ContainerID: 0,
-		// 		HostID:      os.Getgid(),
-		// 		Size:        1,
-		// 	},
-		// },
+		// Whatever uid/gid we use for the server will be mapped into nobody within the container
+		UidMappings: []syscall.SysProcIDMap{
+			{
+				ContainerID: nobody_uid,
+				HostID:      os.Getuid(),
+				Size:        1,
+			},
+		},
+		GidMappings: []syscall.SysProcIDMap{
+			{
+				ContainerID: nobody_uid,
+				HostID:      os.Getgid(),
+				Size:        1,
+			},
+		},
 	}
 
 	return &attr
