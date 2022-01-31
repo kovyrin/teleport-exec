@@ -9,6 +9,7 @@ import (
 	"runtime"
 	"sync"
 	"syscall"
+	"teleport-exec/cgroups"
 	"teleport-exec/filestream"
 	"time"
 
@@ -25,6 +26,7 @@ type Command struct {
 	running      bool
 	failure      error
 	commandMutex sync.RWMutex
+	cgroup       *cgroups.Container
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -48,8 +50,6 @@ func (c *Command) Start() error {
 	c.commandMutex.Lock()
 	defer c.commandMutex.Unlock()
 
-	log.Printf("Starting command '%s' with %d args: %v", c.Command, len(c.Args), c.Args)
-
 	// Set up the command execution
 	c.executor = exec.Command(c.Command, c.Args...)
 	c.executor.SysProcAttr = c.sysProcAttr()
@@ -69,12 +69,19 @@ func (c *Command) Start() error {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 
+	log.Printf("Starting command '%s' with %d args: %v", c.Command, len(c.Args), c.Args)
 	err = c.executor.Start()
 	if err != nil {
 		c.failure = err
 		return fmt.Errorf("failed to run command '%s': %v", c.Command, err)
 	}
 	c.running = true
+
+	log.Printf("Setting up resource limits for command '%s'", c.CommandId)
+	err = c.setupLimits()
+	if err != nil {
+		return fmt.Errorf("failed to set up resource limits: %w", err)
+	}
 
 	go func() {
 		c.executor.Wait()
@@ -88,6 +95,38 @@ func (c *Command) Start() error {
 		c.log.LogComplete()
 	}()
 
+	return nil
+}
+
+//-------------------------------------------------------------------------------------------------
+func (c *Command) pid() int {
+	return c.executor.Process.Pid
+}
+
+//-------------------------------------------------------------------------------------------------
+// Sets up Cgroup-based limits for the process running the command
+func (c *Command) setupLimits() error {
+	var err error
+
+	// Create a cgroup for this command
+	c.cgroup, err = cgroups.NewContainer(c.CommandId)
+	if err != nil {
+		return fmt.Errorf("failed to setup cgroups for command %s: %w", c.CommandId, err)
+	}
+
+	// Add the process to the cgroup
+	c.cgroup.AddProcess(c.pid())
+
+	// Set up limits
+	if err := c.cgroup.MemoryLimitBytes(10 * 1024 * 1024); err != nil { // 10Mb limit
+		return fmt.Errorf("failed to set a memory limit: %w", err)
+	}
+	if err := c.cgroup.IoWeight(1); err != nil { // Put the lowest IO weight on this command
+		return fmt.Errorf("failed to set a io weight limit: %w", err)
+	}
+	if err := c.cgroup.CpuLimitPct(10); err != nil { // 10% of CPU maximum per command
+		return fmt.Errorf("failed to set a CPU limit: %w", err)
+	}
 	return nil
 }
 
@@ -154,7 +193,7 @@ func (c *Command) Kill() {
 		defer c.commandMutex.Unlock()
 
 		// Kill the whole process group
-		killPg(c.executor.Process.Pid)
+		killPg(c.pid())
 	}
 }
 
@@ -207,6 +246,9 @@ func (c *Command) Close() {
 
 	// Close the log stream
 	c.log.Close()
+
+	// Cleanup cgroups
+	c.cgroup.Close()
 }
 
 //-------------------------------------------------------------------------------------------------

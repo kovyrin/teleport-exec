@@ -8,4 +8,5 @@ if [[ "$1" == "" ]]; then
 fi
 
 make base_image
-docker run -e TERM=color -it --rm --privileged teleport-exec-test go run -race cmd/containerize/containerize.go "$@"
+# Need to have it privileged and mount the cgroups in rw mode because of https://github.com/docker/for-mac/issues/6073
+docker run -e TERM=color -it --rm --privileged --cgroupns=host -v /sys/fs/cgroup:/sys/fs/cgroup:rw teleport-exec-test go run -race cmd/containerize/containerize.go "$@"

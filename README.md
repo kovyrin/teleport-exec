@@ -29,9 +29,14 @@ If you need access to some packages that are not available in the Docker contain
 Here are a few examples that may be useful for testing:
 
 ```bash
+# Get some information about the system
 ./script/containerize.sh ps ax
 ./script/containerize.sh ls -lR /
 ./script/containerize.sh cat /etc/passwd
+
+# Run a command that keeps streaming content until stopped (and demonstrates isolated networking)
 ./script/containerize.sh bash -c "ip link set lo up; ip addr list;ping 127.0.0.1"
 
+# Test CPU limits
+./script/containerize.sh sha256sum /dev/zero
 ```
