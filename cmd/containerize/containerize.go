@@ -11,8 +11,19 @@ import (
 	"teleport-exec/cgroups"
 	"teleport-exec/containerize"
 	"time"
+
+	"github.com/docker/engine/pkg/reexec"
 )
 
+//-------------------------------------------------------------------------------------------------
+func init() {
+	reexec.Register("executeCommand", containerize.ExecuteCommand)
+	if reexec.Init() {
+		os.Exit(0)
+	}
+}
+
+//-------------------------------------------------------------------------------------------------
 func main() {
 	controller := containerize.NewController()
 	defer controller.Close()

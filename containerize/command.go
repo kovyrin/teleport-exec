@@ -15,9 +15,17 @@ import (
 	"teleport-exec/cgroups"
 	"teleport-exec/filestream"
 
+	"github.com/docker/engine/pkg/reexec"
 	"github.com/google/uuid"
 	"go.uber.org/multierr"
 )
+
+//-------------------------------------------------------------------------------------------------
+var defaultEnvironment = []string{
+	"HOME=/root",
+	"PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+	"TERM=xterm",
+}
 
 //-------------------------------------------------------------------------------------------------
 type Command struct {
@@ -49,12 +57,10 @@ func NewCommand(command []string) (*Command, error) {
 	}
 
 	// Set up the command execution
-	cmd := exec.Command(c.Command, c.Args...)
+	cmd := reexec.Command(append([]string{"executeCommand"}, command...)...)
 	c.executor = cmd
 	cmd.SysProcAttr = c.sysProcAttr()
-	cmd.Env = []string{
-		"TERM=vt100",
-	}
+	cmd.Env = defaultEnvironment
 
 	// Redirect command output to a command-specific log (so that we could read/stream it later)
 	pl, err := NewProcessLog(c.CommandId)
@@ -153,13 +159,19 @@ func (c *Command) setupLimits() error {
 
 //-------------------------------------------------------------------------------------------------
 func (c *Command) sysProcAttr() *syscall.SysProcAttr {
-	// Get the UID for the nobody user
 	nobody_uid := 65534
+	nobody_gid := 65534
+
 	nobody, err := user.Lookup("nobody")
 	if err == nil && nobody != nil {
 		uid, err := strconv.Atoi(nobody.Uid)
 		if err != nil {
 			nobody_uid = uid
+		}
+
+		gid, err := strconv.Atoi(nobody.Gid)
+		if err != nil {
+			nobody_gid = gid
 		}
 	}
 
@@ -179,18 +191,29 @@ func (c *Command) sysProcAttr() *syscall.SysProcAttr {
 			syscall.CLONE_NEWNS | // Isolated mount namespace
 			syscall.CLONE_NEWUSER, // Isolated user namespace
 
-		// Whatever uid/gid we use for the server will be mapped into nobody within the container
+		// Whatever uid/gid we use for the server will be mapped into root within the container
+		// This is needed to allow the reexecuted binary to mount /proc, etc before dropping privileges
 		UidMappings: []syscall.SysProcIDMap{
 			{
-				ContainerID: nobody_uid,
+				ContainerID: 0,
 				HostID:      os.Getuid(),
+				Size:        1,
+			},
+			{
+				ContainerID: 65534,
+				HostID:      nobody_uid,
 				Size:        1,
 			},
 		},
 		GidMappings: []syscall.SysProcIDMap{
 			{
-				ContainerID: nobody_uid,
+				ContainerID: 0,
 				HostID:      os.Getgid(),
+				Size:        1,
+			},
+			{
+				ContainerID: 65534,
+				HostID:      nobody_gid,
 				Size:        1,
 			},
 		},
