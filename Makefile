@@ -1,6 +1,6 @@
 cwd := $(shell pwd)
 use_tty := $(shell [ -t 0 ] && echo "-it")
-docker_run := docker run -e TERM=color $(use_tty) --rm --privileged teleport-exec-test
+docker_run := docker run -e TERM=color $(use_tty) --rm --privileged --cgroupns=host -v /sys/fs/cgroup:/sys/fs/cgroup:rw teleport-exec-test
 #--------------------------------------------------------------------------------------------------
 all: protoc
 
@@ -19,9 +19,6 @@ base_image: protoc
 
 test: base_image
 		 $(docker_run) go test -race -v ./...
-
-ping: base_image
-		$(docker_run) go run -race cmd/containerize/containerize.go ping -O 8.8.8.8
 
 lint:
 		docker run -e TERM=color $(use_tty) --rm -v $(cwd):/app -w /app golangci/golangci-lint:v1.44.0 golangci-lint run
