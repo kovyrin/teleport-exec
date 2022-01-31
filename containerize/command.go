@@ -39,29 +39,29 @@ func NewCommand(command []string) Command {
 
 //-------------------------------------------------------------------------------------------------
 // Starts the command in a separate thread
-func (s *Command) Start() error {
-	if s.executor != nil {
+func (c *Command) Start() error {
+	if c.executor != nil {
 		return errors.New("command is already running")
 	}
 
 	// Lock the state while we're changing stuff around here
-	s.commandMutex.Lock()
-	defer s.commandMutex.Unlock()
+	c.commandMutex.Lock()
+	defer c.commandMutex.Unlock()
 
-	log.Printf("Starting command '%s' with %d args: %v", s.Command, len(s.Args), s.Args)
+	log.Printf("Starting command '%s' with %d args: %v", c.Command, len(c.Args), c.Args)
 
 	// Set up the command execution
-	s.executor = exec.Command(s.Command, s.Args...)
-	s.executor.SysProcAttr = s.sysProcAttr()
+	c.executor = exec.Command(c.Command, c.Args...)
+	c.executor.SysProcAttr = c.sysProcAttr()
 
 	// Redirect command output to a command-specific log (so that we could read/stream it later)
-	pl, err := NewProcessLog(s.CommandId)
+	pl, err := NewProcessLog(c.CommandId)
 	if err != nil {
 		return err
 	}
-	s.log = pl
-	s.executor.Stdout = pl.fd
-	s.executor.Stderr = pl.fd
+	c.log = pl
+	c.executor.Stdout = pl.fd
+	c.executor.Stderr = pl.fd
 
 	// On Linux, pdeathsig will kill the child process when the thread dies,
 	// not when the process dies. runtime.LockOSThread ensures that as long
@@ -69,30 +69,30 @@ func (s *Command) Start() error {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 
-	err = s.executor.Start()
+	err = c.executor.Start()
 	if err != nil {
-		s.failure = err
-		return fmt.Errorf("failed to run command '%s': %v", s.Command, err)
+		c.failure = err
+		return fmt.Errorf("failed to run command '%s': %v", c.Command, err)
 	}
-	s.running = true
+	c.running = true
 
 	go func() {
-		s.executor.Wait()
+		c.executor.Wait()
 
 		// Now that the process is dead, update the running state accordingly
-		s.commandMutex.Lock()
-		s.running = false
-		s.commandMutex.Unlock()
+		c.commandMutex.Lock()
+		c.running = false
+		c.commandMutex.Unlock()
 
 		// Let all log streams know that there is no reason to wait for more output anymore
-		s.log.LogComplete()
+		c.log.LogComplete()
 	}()
 
 	return nil
 }
 
 //-------------------------------------------------------------------------------------------------
-func (s *Command) sysProcAttr() *syscall.SysProcAttr {
+func (c *Command) sysProcAttr() *syscall.SysProcAttr {
 	attr := syscall.SysProcAttr{
 		// Use the same process group for all processed spawned by the command
 		// This is needed to make sure we can kill the whole tree at once
@@ -132,29 +132,29 @@ func (s *Command) sysProcAttr() *syscall.SysProcAttr {
 
 //-------------------------------------------------------------------------------------------------
 // Returns true if the command is still running
-func (s *Command) Running() bool {
-	s.commandMutex.RLock()
-	running := s.running
-	s.commandMutex.RUnlock()
+func (c *Command) Running() bool {
+	c.commandMutex.RLock()
+	running := c.running
+	c.commandMutex.RUnlock()
 	return running
 }
 
 // Waits for the process to finish (without relying on waitpid, which destroys process exit status info)
-func (s *Command) Wait() {
-	for s.Running() {
+func (c *Command) Wait() {
+	for c.Running() {
 		time.Sleep(100 * time.Millisecond)
 	}
 }
 
 //-------------------------------------------------------------------------------------------------
 // Terminates the command if it is running (including all sub-processes)
-func (s *Command) Kill() {
-	if s.Running() {
-		s.commandMutex.Lock()
-		defer s.commandMutex.Unlock()
+func (c *Command) Kill() {
+	if c.Running() {
+		c.commandMutex.Lock()
+		defer c.commandMutex.Unlock()
 
 		// Kill the whole process group
-		killPg(s.executor.Process.Pid)
+		killPg(c.executor.Process.Pid)
 	}
 }
 
@@ -167,53 +167,53 @@ func killPg(pgid int) error {
 }
 
 //-------------------------------------------------------------------------------------------------
-func (s *Command) ResultCode() (int, error) {
-	if s.Running() {
+func (c *Command) ResultCode() (int, error) {
+	if c.Running() {
 		return 0, errors.New("no result code available for a running command")
 	}
 
-	s.commandMutex.RLock()
-	defer s.commandMutex.RUnlock()
-	return s.executor.ProcessState.ExitCode(), nil
+	c.commandMutex.RLock()
+	defer c.commandMutex.RUnlock()
+	return c.executor.ProcessState.ExitCode(), nil
 }
 
-func (s *Command) ResultDescription() (string, error) {
-	if s.Running() {
+func (c *Command) ResultDescription() (string, error) {
+	if c.Running() {
 		return "", errors.New("no result description available for a running command")
 	}
 
-	s.commandMutex.RLock()
-	defer s.commandMutex.RUnlock()
-	return s.executor.ProcessState.String(), nil
+	c.commandMutex.RLock()
+	defer c.commandMutex.RUnlock()
+	return c.executor.ProcessState.String(), nil
 }
 
 //-------------------------------------------------------------------------------------------------
-func (s *Command) Failure() error {
-	s.commandMutex.RLock()
-	defer s.commandMutex.RUnlock()
-	return s.failure
+func (c *Command) Failure() error {
+	c.commandMutex.RLock()
+	defer c.commandMutex.RUnlock()
+	return c.failure
 }
 
 //-------------------------------------------------------------------------------------------------
 // Closes log files, releases other resources used by the command
-func (s *Command) Close() {
+func (c *Command) Close() {
 	// Make sure the process has stopped
-	if s.Running() {
-		s.Kill()
+	if c.Running() {
+		c.Kill()
 	}
 
 	// Make sure we release all the resources associated with the command
-	s.Wait()
+	c.Wait()
 
 	// Close the log stream
-	s.log.Close()
+	c.log.Close()
 }
 
 //-------------------------------------------------------------------------------------------------
-func (s *Command) NewLogStream(ctx context.Context) (*filestream.FileStream, error) {
-	return s.log.NewLogStream(ctx, s.Running())
+func (c *Command) NewLogStream(ctx context.Context) (*filestream.FileStream, error) {
+	return c.log.NewLogStream(ctx, c.Running())
 }
 
-func (s *Command) CloseLogStream(log *filestream.FileStream) error {
-	return s.log.CloseLogStream(log)
+func (c *Command) CloseLogStream(log *filestream.FileStream) error {
+	return c.log.CloseLogStream(log)
 }
