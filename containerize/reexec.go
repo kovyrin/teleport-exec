@@ -60,8 +60,8 @@ func ExecuteCommand() {
 // setupNetworking enables loopback interface within the container
 func setupNetworking() {
 	log.Println("Setting up local networking...")
-	ifup := exec.Command("ip", "link", "set", "lo", "up")
-	if err := ifup.Run(); err != nil {
+	loopbackUp := exec.Command("ip", "link", "set", "lo", "up")
+	if err := loopbackUp.Run(); err != nil {
 		fmt.Println("Error setting up networking:", err)
 		os.Exit(42)
 	}
