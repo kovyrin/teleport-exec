@@ -11,8 +11,7 @@ import (
 
 const rootPath = "/sys/fs/cgroup/containerize"
 
-//-------------------------------------------------------------------------------------------------
-// Sets up cgroups support before we could use it for per-process limits
+// Setup prepares cgroups support before we could use it for per-process limits
 func Setup() error {
 	log.Println("Setting up cgroups for containerized command execution...")
 
@@ -31,35 +30,35 @@ func Setup() error {
 	}
 
 	// Enable controllers we need
-	subtree_control := rootPath + "/cgroup.subtree_control"
-	if err := os.WriteFile(subtree_control, []byte("+memory +io +cpu"), 0644); err != nil {
+	subtreeControl := rootPath + "/cgroup.subtree_control"
+	if err := os.WriteFile(subtreeControl, []byte("+memory +io +cpu"), 0644); err != nil {
 		return fmt.Errorf("failed to enable cgroup controllers for the root cgroup: %w", err)
 	}
 
 	return nil
 }
 
+// TearDown cleans up our cgroups before process shutdown
+func TearDown() error {
+	log.Println("Cleaning up cgroups...")
+	return os.RemoveAll(rootPath)
+}
+
 //-------------------------------------------------------------------------------------------------
 func cgroup2Mounted() (bool, error) {
-	mounts_file, err := os.Open("/proc/mounts")
+	mountsFile, err := os.Open("/proc/mounts")
 	if err != nil {
 		return false, fmt.Errorf("failed to open the mounts list: %w", err)
 	}
-	defer mounts_file.Close()
 
-	scanner := bufio.NewScanner(mounts_file)
+	scanner := bufio.NewScanner(mountsFile)
 	for scanner.Scan() {
 		fields := strings.Split(scanner.Text(), " ")
 		if fields[0] == "cgroup2" {
 			return true, nil
 		}
 	}
-	return false, nil
-}
 
-//-------------------------------------------------------------------------------------------------
-// Cleans up our cgroups before process shutdown
-func TearDown() error {
-	log.Println("Cleaning up cgroups...")
-	return os.RemoveAll(rootPath)
+	_ = mountsFile.Close()
+	return false, nil
 }
