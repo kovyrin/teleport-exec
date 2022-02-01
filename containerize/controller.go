@@ -2,10 +2,11 @@ package containerize
 
 import (
 	"errors"
-	"log"
+	"go.uber.org/multierr"
 	"sync"
 )
 
+// CommandStatus represents a snapshot of status information for a single command
 type CommandStatus struct {
 	CommandId string
 	Command   string
@@ -13,18 +14,20 @@ type CommandStatus struct {
 	Running   bool
 }
 
+// Controller represents a container management controller state
 type Controller struct {
 	commands map[string]*Command
 	mu       sync.RWMutex
 }
 
+// NewController sets up a new controller for managing containers
 func NewController() *Controller {
 	controller := Controller{}
 	controller.commands = make(map[string]*Command)
 	return &controller
 }
 
-//-------------------------------------------------------------------------------------------------
+// StartCommand creates a new container and runs a given command inside
 func (c *Controller) StartCommand(command []string) (*Command, error) {
 	cmd, err := NewCommand(command)
 	if err != nil {
@@ -42,21 +45,21 @@ func (c *Controller) StartCommand(command []string) (*Command, error) {
 	return cmd, nil
 }
 
-//-------------------------------------------------------------------------------------------------
-func (c *Controller) FindCommand(command_id string) (*Command, error) {
+// FindCommand returns an instance of a container for a given commandId
+func (c *Controller) FindCommand(commandId string) (*Command, error) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
-	cmd, ok := c.commands[command_id]
+	cmd, ok := c.commands[commandId]
 	if !ok {
-		return nil, errors.New("Unknown command: " + command_id)
+		return nil, errors.New("Unknown command: " + commandId)
 	}
 	return cmd, nil
 }
 
-//-------------------------------------------------------------------------------------------------
-func (c *Controller) FinishCommand(command_id string) error {
-	cmd, err := c.FindCommand(command_id)
+// FinishCommand terminates
+func (c *Controller) FinishCommand(commandId string) error {
+	cmd, err := c.FindCommand(commandId)
 	if err != nil {
 		return err
 	}
@@ -64,15 +67,12 @@ func (c *Controller) FinishCommand(command_id string) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	delete(c.commands, command_id)
-	cmd.Close()
-
-	return nil
+	delete(c.commands, commandId)
+	return cmd.Close()
 }
 
-//-------------------------------------------------------------------------------------------------
-func (c *Controller) Close() {
-
+// Close shuts down the container controller and kills all running commands
+func (c *Controller) Close() (err error) {
 	var uuids []string
 	c.mu.RLock()
 	for id := range c.commands {
@@ -80,20 +80,20 @@ func (c *Controller) Close() {
 	}
 	c.mu.RUnlock()
 
-	log.Printf("Closing %d commands...", len(uuids))
 	for _, id := range uuids {
-		c.FinishCommand(id)
+		err = multierr.Append(err, c.FinishCommand(id))
 	}
+	return err
 }
 
-//-------------------------------------------------------------------------------------------------
+// Commands returns a read-only snapshot of the current state of all containers registered with the controller
 func (c *Controller) Commands() (commands []CommandStatus) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
-	for command_id, cmd := range c.commands {
+	for commandId, cmd := range c.commands {
 		commands = append(commands, CommandStatus{
-			CommandId: command_id,
+			CommandId: commandId,
 			Command:   cmd.Command,
 			Args:      cmd.Args,
 			Running:   cmd.Running(),

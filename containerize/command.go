@@ -27,7 +27,7 @@ var defaultEnvironment = []string{
 	"TERM=xterm",
 }
 
-//-------------------------------------------------------------------------------------------------
+// Command represents the state of a single containerized command
 type Command struct {
 	CommandId string
 	Command   string
@@ -46,7 +46,7 @@ type Command struct {
 	started  bool // Used to prevent double-start
 }
 
-//-------------------------------------------------------------------------------------------------
+// NewCommand sets up a container for a given command and returns a Command instance associated with it
 func NewCommand(command []string) (*Command, error) {
 	c := Command{
 		CommandId: uuid.NewString(),
@@ -74,8 +74,7 @@ func NewCommand(command []string) (*Command, error) {
 	return &c, nil
 }
 
-//-------------------------------------------------------------------------------------------------
-// Starts the command in a separate thread
+// Start executes the command in a container and starts a separate thread waiting for the command to finish
 func (c *Command) Start() error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -110,7 +109,7 @@ func (c *Command) Start() error {
 //-------------------------------------------------------------------------------------------------
 func (c *Command) waitForCompletion() {
 	// Block until command is done and get the exit status
-	c.executor.Wait()
+	_ = c.executor.Wait()
 
 	// Now that the process is dead, update the running state accordingly
 	c.mu.Lock()
@@ -124,12 +123,10 @@ func (c *Command) waitForCompletion() {
 	close(c.done)
 }
 
-//-------------------------------------------------------------------------------------------------
 func (c *Command) pid() int {
 	return c.executor.Process.Pid
 }
 
-//-------------------------------------------------------------------------------------------------
 // Sets up Cgroup-based limits for the process running the command
 func (c *Command) setupLimits() error {
 	log.Printf("Setting up resource limits for command '%s'", c.CommandId)
@@ -142,13 +139,15 @@ func (c *Command) setupLimits() error {
 	}
 
 	// Add the process to the cgroup
-	c.cgroup.AddProcess(c.pid())
+	if err := c.cgroup.AddProcess(c.pid()); err != nil {
+		return fmt.Errorf("failed to add process to cgroup: %w", err)
+	}
 
 	// Set up limits
 	if err := c.cgroup.MemoryLimitBytes(10 * 1024 * 1024); err != nil { // 10Mb limit
 		return fmt.Errorf("failed to set a memory limit: %w", err)
 	}
-	if err := c.cgroup.IoWeight(1); err != nil { // Put the lowest IO weight on this command
+	if err := c.cgroup.IoWeight(1); err != nil { // Put the lowest IO-weight on this command
 		return fmt.Errorf("failed to set a io weight limit: %w", err)
 	}
 	if err := c.cgroup.CpuLimitPct(10); err != nil { // 10% of CPU maximum per command
@@ -159,19 +158,19 @@ func (c *Command) setupLimits() error {
 
 //-------------------------------------------------------------------------------------------------
 func (c *Command) sysProcAttr() *syscall.SysProcAttr {
-	nobody_uid := 65534
-	nobody_gid := 65534
+	nobodyUid := 65534
+	nobodyGid := 65534
 
 	nobody, err := user.Lookup("nobody")
 	if err == nil && nobody != nil {
 		uid, err := strconv.Atoi(nobody.Uid)
 		if err != nil {
-			nobody_uid = uid
+			nobodyUid = uid
 		}
 
 		gid, err := strconv.Atoi(nobody.Gid)
 		if err != nil {
-			nobody_gid = gid
+			nobodyGid = gid
 		}
 	}
 
@@ -192,7 +191,7 @@ func (c *Command) sysProcAttr() *syscall.SysProcAttr {
 			syscall.CLONE_NEWUSER, // Isolated user namespace
 
 		// Whatever uid/gid we use for the server will be mapped into root within the container
-		// This is needed to allow the reexecuted binary to mount /proc, etc before dropping privileges
+		// This is needed to allow the re-executed binary to mount /proc, etc. before dropping privileges
 		UidMappings: []syscall.SysProcIDMap{
 			{
 				ContainerID: 0,
@@ -201,7 +200,7 @@ func (c *Command) sysProcAttr() *syscall.SysProcAttr {
 			},
 			{
 				ContainerID: 65534,
-				HostID:      nobody_uid,
+				HostID:      nobodyUid,
 				Size:        1,
 			},
 		},
@@ -213,7 +212,7 @@ func (c *Command) sysProcAttr() *syscall.SysProcAttr {
 			},
 			{
 				ContainerID: 65534,
-				HostID:      nobody_gid,
+				HostID:      nobodyGid,
 				Size:        1,
 			},
 		},
@@ -222,15 +221,14 @@ func (c *Command) sysProcAttr() *syscall.SysProcAttr {
 	return &attr
 }
 
-//-------------------------------------------------------------------------------------------------
-// Returns true if the command is still running
+// Running returns true if the command is still running
 func (c *Command) Running() bool {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	return c.running
 }
 
-// Waits for the process to finish (without relying on waitpid, which destroys process exit status info)
+// Wait blocks until the process finishes (without relying on waitpid, which destroys process exit status info)
 func (c *Command) Wait() {
 	if !c.Running() {
 		return
@@ -238,15 +236,14 @@ func (c *Command) Wait() {
 	<-c.done
 }
 
-//-------------------------------------------------------------------------------------------------
-// Terminates the command if it is running (including all sub-processes)
+// Kill terminates the command process (including all sub-processes) if it is running
 func (c *Command) Kill() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
 	if c.running {
 		// Kill the whole process group
-		killPg(c.pid())
+		_ = killPg(c.pid())
 	}
 }
 
@@ -258,7 +255,7 @@ func killPg(pgid int) error {
 	return syscall.Kill(pgid, syscall.SIGKILL)
 }
 
-//-------------------------------------------------------------------------------------------------
+// ResultCode returns the process status code for the command (only if it has finished)
 func (c *Command) ResultCode() (int, error) {
 	if c.Running() {
 		return 0, errors.New("no result code available for a running command")
@@ -269,6 +266,7 @@ func (c *Command) ResultCode() (int, error) {
 	return c.executor.ProcessState.ExitCode(), nil
 }
 
+// ResultDescription returns a string description of the process results (exit code, etc)
 func (c *Command) ResultDescription() (string, error) {
 	if c.Running() {
 		return "", errors.New("no result description available for a running command")
@@ -279,8 +277,7 @@ func (c *Command) ResultDescription() (string, error) {
 	return c.executor.ProcessState.String(), nil
 }
 
-//-------------------------------------------------------------------------------------------------
-// Closes log files, releases other resources used by the command
+// Close terminates the container, closes log files, releases other resources used by the command
 func (c *Command) Close() (err error) {
 	// Prevent double-close
 	c.mu.Lock()
@@ -290,7 +287,7 @@ func (c *Command) Close() (err error) {
 	c.isClosed = true
 	c.mu.Unlock()
 
-	// Make sure the process has stopped and we have a result status
+	// Make sure the process has stopped, and we have a result status
 	c.Kill()
 	c.Wait()
 
@@ -303,11 +300,12 @@ func (c *Command) Close() (err error) {
 	return err
 }
 
-//-------------------------------------------------------------------------------------------------
+// NewLogStream returns a filestream.FileStream object associated with the output from this command
 func (c *Command) NewLogStream(ctx context.Context) (*filestream.FileStream, error) {
 	return c.log.NewLogStream(ctx, c.Running())
 }
 
+// CloseLogStream closes a given command output stream
 func (c *Command) CloseLogStream(log *filestream.FileStream) error {
 	return c.log.CloseLogStream(log)
 }

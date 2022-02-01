@@ -8,8 +8,8 @@ import (
 	"syscall"
 )
 
-// This is executed when we apply reexec hack
-// The command to execute is passed as command arguments starting with Args[1]
+// ExecuteCommand runs when we apply the process re-exec hack (basically the main() of after re-exec)
+// The command to execute is passed as command arguments starting with os.Args[1]
 func ExecuteCommand() {
 	// Mount the new isolated proc namespace
 	if err := syscall.Mount("proc", "/proc", "proc", uintptr(0), ""); err != nil {
