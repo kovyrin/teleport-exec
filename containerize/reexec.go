@@ -2,6 +2,7 @@ package containerize
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -22,6 +23,9 @@ func ExecuteCommand() {
 		fmt.Println("Error setting hostname:", err)
 		os.Exit(42)
 	}
+
+	// Setup local network
+	setupNetworking()
 
 	// Drop permissions to allow the command from changing the host filesystem, etc
 	if err := syscall.Setregid(65534, 65534); err != nil {
@@ -51,4 +55,14 @@ func ExecuteCommand() {
 
 	// This should never happen, but just to be sure
 	os.Exit(125)
+}
+
+// setupNetworking enables loopback interface within the container
+func setupNetworking() {
+	log.Println("Setting up local networking...")
+	ifup := exec.Command("ip", "link", "set", "lo", "up")
+	if err := ifup.Run(); err != nil {
+		fmt.Println("Error setting up networking:", err)
+		os.Exit(42)
+	}
 }
