@@ -39,15 +39,15 @@ func TestProcessLogClose(t *testing.T) {
 
 		Convey("It should delete the log file", func() {
 			// Check that the file exists
-			_, stat_err := os.Stat(pl.FileName())
-			So(stat_err, ShouldBeNil)
+			_, statErr := os.Stat(pl.FileName())
+			So(statErr, ShouldBeNil)
 
 			// Close the stream and delete the file
 			So(pl.Close(), ShouldBeNil)
 
 			// Make sure the file is gone
-			_, stat_err = os.Stat(pl.FileName())
-			So(stat_err, ShouldNotBeNil)
+			_, statErr = os.Stat(pl.FileName())
+			So(statErr, ShouldNotBeNil)
 		})
 
 		Convey("Should not blow up when called multiple times", func() {
@@ -80,8 +80,8 @@ func TestProcessNewLogStream(t *testing.T) {
 			Convey("The returned reader could be used to consume the content from the file", func() {
 				pl.fd.WriteString("banana")
 				buffer := make([]byte, 100)
-				read_bytes, err := stream.Read(buffer)
-				So(string(buffer[:read_bytes]), ShouldResemble, "banana")
+				readBytes, err := stream.Read(buffer)
+				So(string(buffer[:readBytes]), ShouldResemble, "banana")
 				So(err, ShouldBeNil)
 			})
 		})
@@ -101,8 +101,8 @@ func TestProcessNewLogStream(t *testing.T) {
 			Convey("The returned reader could be used to consume the content from the file", func() {
 				pl.fd.WriteString("banana")
 				buffer := make([]byte, 100)
-				read_bytes, err := stream.Read(buffer)
-				So(string(buffer[:read_bytes]), ShouldResemble, "banana")
+				readBytes, err := stream.Read(buffer)
+				So(string(buffer[:readBytes]), ShouldResemble, "banana")
 				So(err, ShouldBeNil)
 			})
 		})

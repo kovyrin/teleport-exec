@@ -11,36 +11,36 @@ import (
 	"go.uber.org/multierr"
 )
 
-//-------------------------------------------------------------------------------------------------
+// ProcessLog represents a process output log file for a given command
 type ProcessLog struct {
-	command_id  string
+	commandId   string
 	fd          *os.File
 	readers     map[*filestream.FileStream]bool
 	readersLock sync.Mutex
 	isClosed    bool
 }
 
-func NewProcessLog(command_id string) (*ProcessLog, error) {
-	fd, err := os.CreateTemp("", "command-"+command_id+".out")
+func NewProcessLog(commandId string) (*ProcessLog, error) {
+	fd, err := os.CreateTemp("", "command-"+commandId+".out")
 	if err != nil {
-		return nil, fmt.Errorf("failed to create a log file for command '%s': %w", command_id, err)
+		return nil, fmt.Errorf("failed to create a log file for command '%s': %w", commandId, err)
 	}
 
 	l := &ProcessLog{
-		command_id: command_id,
-		readers:    make(map[*filestream.FileStream]bool),
-		fd:         fd,
+		commandId: commandId,
+		readers:   make(map[*filestream.FileStream]bool),
+		fd:        fd,
 	}
 
 	return l, nil
 }
 
-//-------------------------------------------------------------------------------------------------
+// FileName returns the name of the log file used by the process
 func (l *ProcessLog) FileName() string {
 	return l.fd.Name()
 }
 
-// Closes the log and deletes the log file
+// Close closed the log and deletes the log file
 func (l *ProcessLog) Close() (err error) {
 	l.readersLock.Lock()
 	defer l.readersLock.Unlock()
@@ -63,8 +63,7 @@ func (l *ProcessLog) Close() (err error) {
 	return err
 }
 
-//-------------------------------------------------------------------------------------------------
-// Tells all readers to stop waiting for more content since the log is complete (command is done)
+// LogComplete tells all readers to stop waiting for more content since the log is complete (command is done)
 func (l *ProcessLog) LogComplete() {
 	l.readersLock.Lock()
 	defer l.readersLock.Unlock()
@@ -74,8 +73,7 @@ func (l *ProcessLog) LogComplete() {
 	}
 }
 
-//-------------------------------------------------------------------------------------------------
-// Returns a new file reader for the log.
+// NewLogStream returns a new file reader for the log.
 func (l *ProcessLog) NewLogStream(ctx context.Context, tail bool) (stream *filestream.FileStream, err error) {
 	l.readersLock.Lock()
 	defer l.readersLock.Unlock()
@@ -89,7 +87,7 @@ func (l *ProcessLog) NewLogStream(ctx context.Context, tail bool) (stream *files
 	return stream, err
 }
 
-// Closes the log stream, including all active readers and deletes the log file
+// CloseLogStream closes a given log stream, removing it from the list of readers
 func (l *ProcessLog) CloseLogStream(stream *filestream.FileStream) error {
 	l.readersLock.Lock()
 	defer l.readersLock.Unlock()

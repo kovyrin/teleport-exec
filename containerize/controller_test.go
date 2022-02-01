@@ -48,17 +48,17 @@ func TestContainerExecController_Close(t *testing.T) {
 		Convey("Should close all commands", func() {
 			cmd1, err := c.StartCommand([]string{"echo", "banana1"})
 			So(err, ShouldBeNil)
-			cmd1_id := cmd1.CommandId
+			cmdId1 := cmd1.CommandId
 
 			cmd2, err := c.StartCommand([]string{"echo", "banana2"})
 			So(err, ShouldBeNil)
-			cmd2_id := cmd2.CommandId
+			cmdId2 := cmd2.CommandId
 
-			So(c.commands, ShouldContainKey, cmd1_id)
-			So(c.commands, ShouldContainKey, cmd2_id)
+			So(c.commands, ShouldContainKey, cmdId1)
+			So(c.commands, ShouldContainKey, cmdId2)
 			c.Close()
-			So(c.commands, ShouldNotContainKey, cmd1_id)
-			So(c.commands, ShouldNotContainKey, cmd2_id)
+			So(c.commands, ShouldNotContainKey, cmdId1)
+			So(c.commands, ShouldNotContainKey, cmdId2)
 		})
 	})
 }
