@@ -238,22 +238,16 @@ func (c *Command) Wait() {
 }
 
 // Kill terminates the command process (including all sub-processes) if it is running
-func (c *Command) Kill() {
+func (c *Command) Kill() error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	if c.running {
-		// Kill the whole process group
-		_ = killPg(c.pid())
-	}
-}
-
-func killPg(pgid int) error {
-	if pgid > 0 {
-		pgid = -pgid
+	if !c.running {
+		return nil
 	}
 
-	return syscall.Kill(pgid, syscall.SIGKILL)
+	// Kill the whole process group
+	return syscall.Kill(-c.pid(), syscall.SIGKILL)
 }
 
 // ResultCode returns the process status code for the command (only if it has finished)
@@ -289,7 +283,7 @@ func (c *Command) Close() (err error) {
 	c.mu.Unlock()
 
 	// Make sure the process has stopped, and we have a result status
-	c.Kill()
+	err = multierr.Append(err, c.Kill())
 	c.Wait()
 
 	// Close the log stream
