@@ -20,12 +20,15 @@ import (
 	"go.uber.org/multierr"
 )
 
-//-------------------------------------------------------------------------------------------------
 var defaultEnvironment = []string{
 	"HOME=/root",
 	"PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
 	"TERM=xterm",
 }
+
+// Default values for nobody uid/gid if we fail to find those
+const defaultNobodyUid = 65534
+const defaultNobodyGid = 65534
 
 // Command represents the state of a single containerized command
 type Command struct {
@@ -159,8 +162,8 @@ func (c *Command) setupLimits() error {
 
 //-------------------------------------------------------------------------------------------------
 func (c *Command) sysProcAttr() *syscall.SysProcAttr {
-	nobodyUid := 65534
-	nobodyGid := 65534
+	nobodyUid := defaultNobodyUid
+	nobodyGid := defaultNobodyGid
 
 	nobody, err := user.Lookup("nobody")
 	if err == nil && nobody != nil {
