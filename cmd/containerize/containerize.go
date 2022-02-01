@@ -25,17 +25,29 @@ func init() {
 
 //-------------------------------------------------------------------------------------------------
 func main() {
-	controller := containerize.NewController()
-	defer controller.Close()
-
 	if len(os.Args) < 2 {
 		fmt.Println("Usage: containerize.go command args...")
 		os.Exit(1)
 	}
 
 	// Prepare cgroups support
-	cgroups.Setup()
-	defer cgroups.TearDown()
+	if err := cgroups.Setup(); err != nil {
+		fmt.Println("Error while setting up cgroups:", err)
+		os.Exit(1)
+	}
+
+	// Set up the controller for running containers
+	controller := containerize.NewController()
+
+	// Clean things up when we're done
+	defer func() {
+		if err := cgroups.TearDown(); err != nil {
+			fmt.Println("Error cleaning up cgroups:", err)
+		}
+		if err := controller.Close(); err != nil {
+			fmt.Println("Error cleaning up controllers:", err)
+		}
+	}()
 
 	// Try to start the command
 	cmd, err := controller.StartCommand(os.Args[1:])
@@ -62,7 +74,11 @@ func main() {
 
 	// Stream content until the stream is terminated
 	fmt.Println(strings.Repeat("-", 80))
-	io.Copy(os.Stdout, stream)
+	_, err = io.Copy(os.Stdout, stream)
+	if err != nil {
+		fmt.Println("Error streaming command output:", err)
+		os.Exit(1)
+	}
 	fmt.Println(strings.Repeat("-", 80))
 
 	// Stop the command, wait for it to stop and exit status to become available
