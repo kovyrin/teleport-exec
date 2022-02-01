@@ -57,15 +57,15 @@ func main() {
 	}
 
 	// Timeout tailing after a while
-	timeout_ctx, timeout_cancel := context.WithTimeout(context.Background(), 15*time.Minute)
-	defer timeout_cancel()
+	timeoutCtx, timeoutCancel := context.WithTimeout(context.Background(), 15*time.Minute)
+	defer timeoutCancel()
 
 	// Stop the stream when cancelled via Ctrl+C
-	interrupt_ctx, interrupt_cancel := signal.NotifyContext(timeout_ctx, os.Interrupt)
-	defer interrupt_cancel()
+	interruptCtx, interruptCancel := signal.NotifyContext(timeoutCtx, os.Interrupt)
+	defer interruptCancel()
 
 	// Start tailing the command output
-	stream, err := cmd.NewLogStream(interrupt_ctx)
+	stream, err := cmd.NewLogStream(interruptCtx)
 	if err != nil {
 		log.Println("Failed to start a log stream:", err)
 		os.Exit(1)
@@ -86,9 +86,9 @@ func main() {
 		fmt.Println("Failed to close the command: %w", err)
 		os.Exit(1)
 	}
-	exit_code, _ := cmd.ResultCode()
-	exit_status, _ := cmd.ResultDescription()
+	exitCode, _ := cmd.ResultCode()
+	exitStatus, _ := cmd.ResultDescription()
 
-	fmt.Printf("Exit code: %d\n", exit_code)
-	fmt.Printf("Status: %s\n", exit_status)
+	fmt.Printf("Exit code: %d\n", exitCode)
+	fmt.Printf("Status: %s\n", exitStatus)
 }
