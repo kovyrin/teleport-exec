@@ -136,12 +136,8 @@ func (s *FileStream) Read(buffer []byte) (int, error) {
 		readBytes, err := s.reader.Read(buffer)
 
 		// How we handle the EOF depends on the current tail mode
-		if err == io.EOF {
-			if s.TailEnabled() {
-				err = nil
-			} else {
-				_ = s.Close()
-			}
+		if err == io.EOF && s.TailEnabled() {
+			err = nil
 		}
 
 		// If there was an error (including an IO in non-tailing mode)
