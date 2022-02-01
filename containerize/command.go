@@ -84,9 +84,10 @@ func (c *Command) Start() error {
 	}
 	c.started = true
 
-	// On Linux, pdeathsig will kill the child process when the thread dies,
-	// not when the process dies. runtime.LockOSThread ensures that as long
-	// as this function is executing that OS thread will still be around
+	// On Linux, pdeathsig (which we use to ensure that all containerized processed die with the server)
+	// will kill the child process when the thread starting it dies, not when the process dies.
+	// runtime.LockOSThread ensures that as long as the goroutine which called cmd.Start is executing,
+	// the backing OS thread will still be around and the process won't be killed by the OS.
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 
