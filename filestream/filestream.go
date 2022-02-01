@@ -18,7 +18,7 @@ type FileStream struct {
 	tailEnabled bool      // Controls what happens when we hit the EOF: wait for more (true) or stop (false)
 	logComplete chan bool // Used to notify the reader when the log is complete
 
-	mu       sync.Mutex      // Protects access to the stream data
+	mu       sync.RWMutex    // Protects access to the stream data
 	done     chan bool       // A channel for letting the reader know that the stream is closed
 	isClosed bool            // Set to true when Close() is first called
 	ctx      context.Context // Used to abort streaming when a client disconnects, etc
@@ -54,8 +54,8 @@ func New(ctx context.Context, fileName string, tail bool) (*FileStream, error) {
 
 // TailEnabled returns true if the stream is in a tailing mode (blocking at the end of a file, waiting for more content)
 func (s *FileStream) TailEnabled() bool {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	return s.tailEnabled
 }
 
