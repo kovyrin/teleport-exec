@@ -42,6 +42,7 @@ func ExecuteCommand() {
 	if filepath.Base(path) == path {
 		if lp, err := exec.LookPath(path); err != nil {
 			fmt.Printf("Could not find the binary to execute for command '%s': %v\n", path, err)
+			os.Exit(2)
 		} else {
 			path = lp
 		}
