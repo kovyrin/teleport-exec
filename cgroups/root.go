@@ -55,10 +55,9 @@ func cgroup2Mounted() (bool, error) {
 	for scanner.Scan() {
 		fields := strings.Split(scanner.Text(), " ")
 		if fields[0] == "cgroup2" {
-			return true, nil
+			return true, mountsFile.Close()
 		}
 	}
 
-	_ = mountsFile.Close()
-	return false, nil
+	return false, mountsFile.Close()
 }
