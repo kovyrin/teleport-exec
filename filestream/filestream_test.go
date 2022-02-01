@@ -18,44 +18,43 @@ func TestFileStream_MoreBytes(t *testing.T) {
 	buffer := make([]byte, 100)
 
 	Convey("filestream.MoreBytes()", t, func() {
-		file_name := "/tmp/tail_test.log"
-		f, _ := os.Create(file_name)
-		init_content := "hello, world!\n"
-		f.WriteString(init_content)
+		fileName := "/tmp/tail_test.log"
+		f, _ := os.Create(fileName)
+		initContent := "hello, world!\n"
+		f.WriteString(initContent)
 
-		tail_enabled := true
-		stream, _ := New(ctx, file_name, tail_enabled)
+		stream, _ := New(ctx, fileName, true)
 
 		Convey("Should return a full buffer when possible", func() {
 			f.WriteString(strings.Repeat("x", len(buffer)))
-			read_bytes, err := stream.Read(buffer)
-			So(read_bytes, ShouldEqual, len(buffer))
+			readBytes, err := stream.Read(buffer)
+			So(readBytes, ShouldEqual, len(buffer))
 			So(err, ShouldBeNil)
 		})
 
 		Convey("Should return available bytes when reaches the end", func() {
-			read_bytes, err := stream.Read(buffer)
+			readBytes, err := stream.Read(buffer)
 			So(err, ShouldBeNil)
-			So(read_bytes, ShouldEqual, len(init_content))
-			So(string(buffer[:read_bytes]), ShouldResemble, init_content)
+			So(readBytes, ShouldEqual, len(initContent))
+			So(string(buffer[:readBytes]), ShouldResemble, initContent)
 		})
 
 		Convey("Should return more data when more data is added to the file", func() {
 			// Read the last 5 bytes and reach the end of the stream
 			stream.reader.Seek(-5, io.SeekEnd)
-			read_bytes, err := stream.Read(buffer)
-			So(read_bytes, ShouldEqual, 5)
+			readBytes, err := stream.Read(buffer)
+			So(readBytes, ShouldEqual, 5)
 			So(err, ShouldBeNil)
 
 			// Add more data
-			more_content := "banana"
-			f.WriteString(more_content)
+			moreContent := "banana"
+			f.WriteString(moreContent)
 
 			// Should be able to consume it now
-			read_bytes, err = stream.Read(buffer)
-			So(read_bytes, ShouldEqual, len(more_content))
+			readBytes, err = stream.Read(buffer)
+			So(readBytes, ShouldEqual, len(moreContent))
 			So(err, ShouldBeNil)
-			So(string(buffer[:read_bytes]), ShouldResemble, more_content)
+			So(string(buffer[:readBytes]), ShouldResemble, moreContent)
 		})
 
 		Convey("When running in a tail mode", func() {
@@ -69,15 +68,15 @@ func TestFileStream_MoreBytes(t *testing.T) {
 					f.WriteString("yo")
 				}()
 
-				read_bytes, err := stream.Read(buffer)
-				So(read_bytes, ShouldEqual, 2)
+				readBytes, err := stream.Read(buffer)
+				So(readBytes, ShouldEqual, 2)
 				So(err, ShouldBeNil)
-				So(string(buffer[:read_bytes]), ShouldResemble, "yo")
+				So(string(buffer[:readBytes]), ShouldResemble, "yo")
 			})
 		})
 
 		Convey("When running in a non-tail mode", func() {
-			stream, _ := New(ctx, file_name, false)
+			stream, _ := New(ctx, fileName, false)
 
 			Convey("Should return an EOF when reaches the end", func() {
 				// read all data
@@ -91,8 +90,8 @@ func TestFileStream_MoreBytes(t *testing.T) {
 					f.WriteString("yo")
 				}()
 
-				read_bytes, err := stream.Read(buffer)
-				So(read_bytes, ShouldEqual, 0)
+				readBytes, err := stream.Read(buffer)
+				So(readBytes, ShouldEqual, 0)
 				So(err, ShouldEqual, io.EOF)
 
 				// Wait for the async write operation to complete
@@ -115,8 +114,8 @@ func TestFileStream_MoreBytes(t *testing.T) {
 					f.WriteString("yo")
 				}()
 
-				read_bytes, err := stream.Read(buffer)
-				So(read_bytes, ShouldEqual, 0)
+				readBytes, err := stream.Read(buffer)
+				So(readBytes, ShouldEqual, 0)
 				So(err, ShouldEqual, io.EOF)
 
 				// Wait for the async write operation to complete
@@ -126,9 +125,9 @@ func TestFileStream_MoreBytes(t *testing.T) {
 
 		Convey("Should return an EOF when cancelled via the context", func() {
 			// Create a stream that times out after a second
-			timeout_ctx, cancel := context.WithTimeout(ctx, time.Second)
+			timeoutCtx, cancel := context.WithTimeout(ctx, time.Second)
 			defer cancel()
-			stream, _ := New(timeout_ctx, file_name, tail_enabled)
+			stream, _ := New(timeoutCtx, fileName, true)
 
 			// Read all data
 			stream.Read(buffer)
@@ -159,14 +158,14 @@ func TestFileStream_MoreBytes(t *testing.T) {
 
 		Convey("Should return an EOF without reading any data if called after closing", func() {
 			stream.Close()
-			read_bytes, err := stream.Read(buffer)
+			readBytes, err := stream.Read(buffer)
 			So(err, ShouldEqual, io.EOF)
-			So(read_bytes, ShouldEqual, 0)
+			So(readBytes, ShouldEqual, 0)
 		})
 
 		Reset(func() {
 			stream.Close()
-			os.Remove(file_name)
+			os.Remove(fileName)
 		})
 	})
 
